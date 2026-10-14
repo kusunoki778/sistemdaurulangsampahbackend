@@ -1,0 +1,53 @@
+# Render Blueprint — Livora API Backend (Laravel 13, PHP 8.3)
+# Repo: sistemdaurulangsampahbackend (root = isi backend/)
+# Database managed di Aiven for MySQL (free plan), SSL wajib.
+services:
+  - type: web
+    name: livora-backend
+    runtime: php@8.3
+    plan: free
+    buildCommand: "composer install --no-dev --prefer-dist --optimize-autoloader"
+    # migrate --force jalan tiap deploy (idempotent) sebelum server start
+    startCommand: "php artisan storage:link || true && php artisan migrate --force && php artisan serve --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_NAME
+        value: Livora
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false # isi manual: php artisan key:generate --show
+      - key: APP_URL
+        value: https://livora-backend.onrender.com # sesuaikan domain Anda
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: error
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        value: # host Aiven (contoh: mysql-xxxxx-xxx.aivencloud.com)
+      - key: DB_PORT
+        value: # port Aiven (angka acak, contoh: 17543)
+      - key: DB_DATABASE
+        value: # nama database Aiven (contoh: defaultdb)
+      - key: DB_USERNAME
+        value: avnadmin
+      - key: DB_PASSWORD
+        sync: false # password Aiven
+      - key: MYSQL_ATTR_SSL_CA
+        value: /opt/render/project/src/database/certs/aiven-mysql-ca.pem
+      - key: SESSION_DRIVER
+        value: database
+      - key: SESSION_LIFETIME
+        value: 120
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: FILESYSTEM_DISK
+        value: public
+      - key: MAIL_MAILER
+        value: log
