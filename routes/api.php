@@ -29,7 +29,8 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// Health check (publik)
+
+ // Health check (publik)
 Route::get('/health', function () {
     return response()->json([
         'status' => 'success',
@@ -37,6 +38,29 @@ Route::get('/health', function () {
         'timestamp' => now()->toIso8601String(),
     ]);
 });
+
+// TEMPORARY: test koneksi database Aiven
+Route::get('/health/database', function () {
+    try {
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+
+        return response()->json([
+            'status' => 'success',
+            'database' => 'connected',
+        ]);
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error(
+            'Database connection test failed: ' . $e->getMessage()
+        );
+
+        return response()->json([
+            'status' => 'error',
+            'database' => 'disconnected',
+            'message' => 'Database connection failed. Check application logs.',
+        ], 503);
+    }
+});
+
 
 // 1. AUTHENTICATION (publik)
 Route::post('/auth/register', [AuthController::class, 'register']);
