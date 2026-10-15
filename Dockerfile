@@ -40,6 +40,8 @@ RUN sed -ri 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
 
 WORKDIR /var/www/html
 
+COPY certs/aiven-ca.pem /etc/ssl/certs/aiven-ca.pem
+
 COPY composer.json composer.lock ./
 
 RUN composer install \
