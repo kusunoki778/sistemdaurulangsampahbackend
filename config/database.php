@@ -3,6 +3,21 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
+// Path CA certificate untuk SSL (Aiven). Hanya dipakai bila filenya benar-benar ada:
+// - dari env MYSQL_ATTR_SSL_CA, atau
+// - fallback ke database/certs/aiven-mysql-ca.pem di dalam aplikasi.
+// Bila tidak ditemukan, koneksi tetap terenkripsi tanpa verifikasi CA (tidak crash).
+$mysqlSslCa = (static function () {
+    $configured = env('MYSQL_ATTR_SSL_CA');
+    if (is_string($configured) && $configured !== '' && is_file($configured)) {
+        return $configured;
+    }
+
+    $bundled = base_path('database/certs/aiven-mysql-ca.pem');
+
+    return is_file($bundled) ? $bundled : null;
+})();
+
 return [
 
     /*
@@ -60,7 +75,7 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                Mysql::ATTR_SSL_CA => $mysqlSslCa,
             ]) : [],
         ],
 
@@ -80,7 +95,7 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                Mysql::ATTR_SSL_CA => $mysqlSslCa,
             ]) : [],
         ],
 
