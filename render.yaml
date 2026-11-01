@@ -39,6 +39,12 @@ services:
         sync: false # password Aiven
       - key: MYSQL_ATTR_SSL_CA
         value: /opt/render/project/src/database/certs/aiven-mysql-ca.pem
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
       - key: SESSION_DRIVER
         value: database
       - key: SESSION_LIFETIME

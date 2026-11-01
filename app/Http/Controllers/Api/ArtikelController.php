@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Artikel;
+use App\Services\CloudinaryService;
 use Illuminate\Http\Request;
 
 class ArtikelController extends Controller
@@ -73,6 +74,7 @@ class ArtikelController extends Controller
             'kategori' => 'required|string|max:100',
             'isi' => 'required|string',
             'gambar' => 'nullable|string',
+            'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'status' => 'sometimes|in:draft,published',
         ]);
 
@@ -81,7 +83,7 @@ class ArtikelController extends Controller
             'slug' => $request->slug,
             'kategori' => $request->kategori,
             'isi' => $request->isi,
-            'gambar' => $request->gambar,
+            'gambar' => app(CloudinaryService::class)->resolveGambar($request, config('services.cloudinary.folder_artikel')),
             'admin_id' => $request->user()->id,
             'status' => $request->status ?? 'draft',
         ]);
@@ -107,10 +109,13 @@ class ArtikelController extends Controller
             'kategori' => 'sometimes|required|string|max:100',
             'isi' => 'sometimes|required|string',
             'gambar' => 'nullable|string',
+            'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'status' => 'sometimes|in:draft,published',
         ]);
 
-        $artikel->update($request->only(['judul', 'slug', 'kategori', 'isi', 'gambar', 'status']));
+        $data = $request->only(['judul', 'slug', 'kategori', 'isi', 'status']);
+        $data['gambar'] = app(CloudinaryService::class)->resolveGambar($request, config('services.cloudinary.folder_artikel'));
+        $artikel->update($data);
 
         return response()->json([
             'status' => 'success',

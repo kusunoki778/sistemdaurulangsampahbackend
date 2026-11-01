@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'cloudinary' => [
+        'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
+        'api_key' => env('CLOUDINARY_API_KEY'),
+        'api_secret' => env('CLOUDINARY_API_SECRET'),
+        'folder_sampah' => env('CLOUDINARY_FOLDER_SAMPAH', 'livora/jenis-sampah'),
+        'folder_reward' => env('CLOUDINARY_FOLDER_REWARD', 'livora/rewards'),
+        'folder_artikel' => env('CLOUDINARY_FOLDER_ARTIKEL', 'livora/artikels'),
+    ],
+
 ];

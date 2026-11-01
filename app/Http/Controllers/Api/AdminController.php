@@ -13,6 +13,7 @@ use App\Models\Reward;
 use App\Models\TransaksiSetor;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\CloudinaryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -186,8 +187,11 @@ class AdminController extends Controller
             'poin_per_satuan' => 'required|integer|min:1',
             'deskripsi' => 'nullable|string',
             'gambar' => 'nullable|string',
+            'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
-        $jenis = JenisSampah::create($request->only(['kategori_id', 'nama_jenis', 'satuan', 'poin_per_satuan', 'deskripsi', 'gambar']));
+        $data = $request->only(['kategori_id', 'nama_jenis', 'satuan', 'poin_per_satuan', 'deskripsi']);
+        $data['gambar'] = app(CloudinaryService::class)->resolveGambar($request, config('services.cloudinary.folder_sampah'));
+        $jenis = JenisSampah::create($data);
 
         return response()->json(['status' => 'success', 'message' => 'Jenis sampah dibuat', 'data' => $jenis->load('kategori')], 201);
     }
@@ -202,8 +206,11 @@ class AdminController extends Controller
             'poin_per_satuan' => 'sometimes|required|integer|min:1',
             'deskripsi' => 'nullable|string',
             'gambar' => 'nullable|string',
+            'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
-        $jenis->update($request->only(['kategori_id', 'nama_jenis', 'satuan', 'poin_per_satuan', 'deskripsi', 'gambar']));
+        $data = $request->only(['kategori_id', 'nama_jenis', 'satuan', 'poin_per_satuan', 'deskripsi']);
+        $data['gambar'] = app(CloudinaryService::class)->resolveGambar($request, config('services.cloudinary.folder_sampah'));
+        $jenis->update($data);
 
         return response()->json(['status' => 'success', 'message' => 'Jenis sampah diperbarui', 'data' => $jenis->load('kategori')]);
     }
@@ -237,10 +244,13 @@ class AdminController extends Controller
             'koin_dibutuhkan' => 'required|integer|min:1',
             'stok' => 'required|integer|min:0',
             'gambar' => 'nullable|string',
+            'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'deskripsi' => 'nullable|string',
             'status_aktif' => 'boolean',
         ]);
-        $reward = Reward::create($request->only(['nama_reward', 'tipe', 'koin_dibutuhkan', 'stok', 'gambar', 'deskripsi', 'status_aktif']));
+        $data = $request->only(['nama_reward', 'tipe', 'koin_dibutuhkan', 'stok', 'deskripsi', 'status_aktif']);
+        $data['gambar'] = app(CloudinaryService::class)->resolveGambar($request, config('services.cloudinary.folder_reward'));
+        $reward = Reward::create($data);
 
         return response()->json(['status' => 'success', 'message' => 'Reward dibuat', 'data' => $reward], 201);
     }
@@ -254,10 +264,13 @@ class AdminController extends Controller
             'koin_dibutuhkan' => 'sometimes|required|integer|min:1',
             'stok' => 'sometimes|required|integer|min:0',
             'gambar' => 'nullable|string',
+            'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'deskripsi' => 'nullable|string',
             'status_aktif' => 'boolean',
         ]);
-        $reward->update($request->only(['nama_reward', 'tipe', 'koin_dibutuhkan', 'stok', 'gambar', 'deskripsi', 'status_aktif']));
+        $data = $request->only(['nama_reward', 'tipe', 'koin_dibutuhkan', 'stok', 'deskripsi', 'status_aktif']);
+        $data['gambar'] = app(CloudinaryService::class)->resolveGambar($request, config('services.cloudinary.folder_reward'));
+        $reward->update($data);
 
         return response()->json(['status' => 'success', 'message' => 'Reward diperbarui', 'data' => $reward]);
     }

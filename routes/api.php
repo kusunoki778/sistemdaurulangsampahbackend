@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\QuizController;
 use App\Http\Controllers\Api\RewardController;
 use App\Http\Controllers\Api\TransaksiSetorController;
 use App\Http\Controllers\Api\WalletController;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,11 +30,21 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// Health check (publik)
+// Health check (publik) — sekalian menandai status database agar ping
+// monitor (UptimeRobot) membantu menjaga koneksi tetap hangat.
 Route::get('/health', function () {
+    $database = 'disconnected';
+    try {
+        DB::select('SELECT 1');
+        $database = 'connected';
+    } catch (Throwable $e) {
+        // Database belum siap — health tetap 200 agar monitor tidak salah alarm.
+    }
+
     return response()->json([
         'status' => 'success',
         'message' => 'Livora API Backend is running!',
+        'database' => $database,
         'timestamp' => now()->toIso8601String(),
     ]);
 });
