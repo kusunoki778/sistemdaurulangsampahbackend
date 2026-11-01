@@ -25,7 +25,11 @@ class PermintaanRewardController extends Controller
 
         return DB::transaction(function () use ($request) {
             $user = $request->user();
-            $reward = Reward::findOrFail($request->reward_id);
+
+            // Kunci baris reward & wallet (lockForUpdate) selama transaksi agar dua
+            // klaim bersamaan tidak bisa membuat saldo koin negatif atau stok minus.
+            // Pengecekan saldo/stok dilakukan SETELAH lock, bukan sebelum.
+            $reward = Reward::whereKey($request->reward_id)->lockForUpdate()->firstOrFail();
 
             if (! $reward->status_aktif) {
                 return response()->json([
@@ -41,8 +45,8 @@ class PermintaanRewardController extends Controller
                 ], 400);
             }
 
-            // Cek wallet user
-            $wallet = $user->wallet;
+            // Kunci wallet user
+            $wallet = Wallet::where('user_id', $user->id)->lockForUpdate()->first();
             if (! $wallet) {
                 return response()->json([
                     'status' => 'error',
@@ -61,8 +65,9 @@ class PermintaanRewardController extends Controller
                 ], 400);
             }
 
-            // Generate kode klaim
-            $kodeKlaim = 'CLM-'.now()->format('Ymd').'-'.str_pad(PermintaanReward::count() + 1, 4, '0', STR_PAD_LEFT);
+            // Kode klaim acak — kebal terhadap klaim bersamaan
+            // (pola count()+1 bisa menghasilkan kode duplikat).
+            $kodeKlaim = 'CLM-'.now()->format('Ymd').'-'.strtoupper(bin2hex(random_bytes(2)));
 
             // Potong saldo koin
             $wallet->decrement('saldo_koin', $reward->koin_dibutuhkan);

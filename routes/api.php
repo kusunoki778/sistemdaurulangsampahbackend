@@ -50,8 +50,10 @@ Route::get('/health', function () {
 });
 
 // 1. AUTHENTICATION (publik)
-Route::post('/auth/register', [AuthController::class, 'register']);
-Route::post('/auth/login', [AuthController::class, 'login']);
+// Login & register dibatasi 5x per menit per IP — memperlambat brute force
+// password dan pembuatan akun massal (forgot/reset sudah throttle di bawah).
+Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:10,1');
 Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1');
 
