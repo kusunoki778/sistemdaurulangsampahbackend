@@ -38,7 +38,7 @@ services:
       - key: DB_PASSWORD
         sync: false # password Aiven
       - key: MYSQL_ATTR_SSL_CA
-        value: /opt/render/project/src/database/certs/aiven-mysql-ca.pem
+        value: /app/database/certs/aiven-mysql-ca.pem # path di dalam container Docker
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
