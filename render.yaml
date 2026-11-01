@@ -45,6 +45,8 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false # domain frontend Vercel, dipisah koma
       - key: SESSION_DRIVER
         value: database
       - key: SESSION_LIFETIME

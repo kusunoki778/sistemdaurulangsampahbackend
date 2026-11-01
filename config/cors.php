@@ -17,7 +17,12 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    // Produksi: isi CORS_ALLOWED_ORIGINS dengan domain frontend, dipisah koma.
+    // Contoh: https://livora.vercel.app,https://livora-web.vercel.app
+    // Bila tidak diset, fallback terbuka ('*') untuk kompatibilitas lokal.
+    'allowed_origins' => array_values(
+        array_filter(array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS', '*'))))
+    ),
 
     'allowed_origins_patterns' => [],
 
