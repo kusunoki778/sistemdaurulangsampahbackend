@@ -17,11 +17,13 @@ class TransaksiSetorDetail extends Model
         'jenis_sampah_id',
         'jumlah',
         'koin_subtotal',
+        'poin_per_satuan',
     ];
 
     protected $casts = [
         'jumlah' => 'decimal:2',
         'koin_subtotal' => 'decimal:2',
+        'poin_per_satuan' => 'decimal:2',
     ];
 
     public function transaksiSetor(): BelongsTo

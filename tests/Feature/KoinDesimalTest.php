@@ -47,37 +47,32 @@ class KoinDesimalTest extends TestCase
         ]);
     }
 
-    public function test_approve_setor_menghitung_koin_desimal_tanpa_pembulatan(): void
+    public function test_setor_menghitung_koin_desimal_tanpa_pembulatan(): void
     {
         $admin = $this->buatUser('admin');
         $user = $this->buatUser();
         $jenis = $this->buatJenisSampah(25);
 
-        $transaksi = TransaksiSetor::create([
-            'kode_transaksi' => 'TRX-S-TEST-1',
-            'user_id' => $user->id,
-            'total_koin' => 0,
-            'status' => 'pending',
-        ]);
-
-        $detail = TransaksiSetorDetail::create([
-            'transaksi_setor_id' => $transaksi->id,
-            'jenis_sampah_id' => $jenis->id,
-            'jumlah' => 1.35,
-            'koin_subtotal' => 0,
-        ]);
-
         Sanctum::actingAs($admin);
 
-        $this->postJson("/api/admin/transaksi-setor/{$transaksi->id}/approve", [
-            'details' => [
-                ['id' => $detail->id, 'jumlah_valid' => 1.35],
+        $response = $this->postJson('/api/admin/transaksi-setor', [
+            'user_id' => $user->id,
+            'items' => [
+                ['jenis_sampah_id' => $jenis->id, 'jumlah' => 1.35],
             ],
-        ])->assertOk();
+        ])->assertCreated();
+
+        $transaksi = TransaksiSetor::findOrFail($response->json('data.transaksi.id'));
+        $detail = TransaksiSetorDetail::where('transaksi_setor_id', $transaksi->id)->firstOrFail();
 
         // 1,35 kg x 25 koin = 33,75 koin (tidak dibulatkan menjadi 34).
-        $this->assertSame('33.75', $detail->fresh()->koin_subtotal);
-        $this->assertSame('33.75', $transaksi->fresh()->total_koin);
+        $this->assertSame('25.00', $detail->poin_per_satuan);
+        $this->assertSame('33.75', $detail->koin_subtotal);
+        $this->assertSame('33.75', $transaksi->total_koin);
+
+        // Fallback admin mencairkan koin desimal tanpa pembulatan.
+        $this->postJson("/api/admin/transaksi-setor/{$transaksi->id}/selesaikan")->assertOk();
+
         $this->assertSame('33.75', TransaksiKoin::first()->jumlah_koin);
         $this->assertSame('33.75', Wallet::where('user_id', $user->id)->first()->saldo_koin);
 
@@ -152,22 +147,25 @@ class KoinDesimalTest extends TestCase
 
     public function test_kode_transaksi_unik_antar_pengajuan(): void
     {
+        $admin = $this->buatUser('admin');
         $user = $this->buatUser();
         $jenis = $this->buatJenisSampah(25);
 
-        Sanctum::actingAs($user);
+        Sanctum::actingAs($admin);
 
-        $pertama = $this->postJson('/api/transaksi-setor', [
+        $pertama = $this->postJson('/api/admin/transaksi-setor', [
+            'user_id' => $user->id,
             'items' => [['jenis_sampah_id' => $jenis->id, 'jumlah' => 1.35]],
         ])->assertCreated();
 
-        $kedua = $this->postJson('/api/transaksi-setor', [
+        $kedua = $this->postJson('/api/admin/transaksi-setor', [
+            'user_id' => $user->id,
             'items' => [['jenis_sampah_id' => $jenis->id, 'jumlah' => 2.4]],
         ])->assertCreated();
 
         $this->assertNotSame(
-            $pertama->json('data.kode_transaksi'),
-            $kedua->json('data.kode_transaksi')
+            $pertama->json('data.transaksi.kode_transaksi'),
+            $kedua->json('data.transaksi.kode_transaksi')
         );
 
         $this->assertSame('33.75', TransaksiSetor::orderBy('id')->first()->total_koin);

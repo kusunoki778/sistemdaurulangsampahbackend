@@ -3,86 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\JenisSampah;
 use App\Models\TransaksiSetor;
-use App\Models\TransaksiSetorDetail;
+use App\Services\QrSessionService;
+use App\Services\SetorSettlementService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 
 class TransaksiSetorController extends Controller
 {
-    /**
-     * User buat pengajuan setor sampah manual
-     * POST /api/transaksi-setor
-     */
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'items' => 'required|array|min:1',
-            'items.*.jenis_sampah_id' => 'required|exists:jenis_sampah,id',
-            'items.*.jumlah' => 'required|numeric|min:0.01',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Data setor sampah tidak valid',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $user = $request->user();
-
-        return DB::transaction(function () use ($request, $user) {
-            // Kode transaksi acak — pola count()+1 rawan duplikat saat
-            // dua transaksi dibuat bersamaan.
-            $kode = 'TRX-S-'.now()->format('Ymd').'-'.strtoupper(bin2hex(random_bytes(3)));
-
-            $transaksi = TransaksiSetor::create([
-                'kode_transaksi' => $kode,
-                'user_id' => $user->id,
-                'total_koin' => 0,
-                'status' => 'pending',
-                'catatan' => $request->catatan ?? null,
-            ]);
-
-            $totalKoin = 0;
-            $totalBeratKg = 0;
-
-            foreach ($request->items as $item) {
-                $jenis = JenisSampah::find($item['jenis_sampah_id']);
-                $jumlah = (float) $item['jumlah'];
-                $koinSubtotal = round($jenis->poin_per_satuan * $jumlah, 2);
-
-                TransaksiSetorDetail::create([
-                    'transaksi_setor_id' => $transaksi->id,
-                    'jenis_sampah_id' => $jenis->id,
-                    'jumlah' => $jumlah,
-                    'koin_subtotal' => $koinSubtotal,
-                ]);
-
-                $totalKoin += $koinSubtotal;
-
-                // Konversi ke kg untuk statistik total_sampah_kg
-                if ($jenis->satuan === 'kg') {
-                    $totalBeratKg += $jumlah;
-                } elseif ($jenis->satuan === 'liter') {
-                    $totalBeratKg += $jumlah * 0.9; // estimasi 1 liter ≈ 0.9 kg
-                } elseif ($jenis->satuan === 'pcs') {
-                    $totalBeratKg += $jumlah * 0.05; // estimasi 1 pcs ≈ 0.05 kg
-                }
-            }
-
-            $transaksi->update(['total_koin' => $totalKoin]);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Pengajuan setor sampah berhasil dikirim! Silakan bawa sampah ke titik pengumpulan Livora.',
-                'data' => $transaksi->load('details.jenisSampah'),
-            ], 201);
-        });
-    }
+    public function __construct(
+        private readonly QrSessionService $qrSessions,
+        private readonly SetorSettlementService $settlement,
+    ) {}
 
     /**
      * Riwayat transaksi setor user
@@ -123,6 +54,143 @@ class TransaksiSetorController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $transaksi,
+        ]);
+    }
+
+    /**
+     * User memindai QR sesi -> tampilkan rincian nominal sebelum konfirmasi.
+     * POST /api/transaksi-setor/scan
+     */
+    public function scan(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string|max:255',
+        ]);
+
+        $session = $this->qrSessions->findValid($request->token);
+
+        if (! $session) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'QR tidak valid atau sudah kedaluwarsa. Minta admin menerbitkan QR baru.',
+            ], 422);
+        }
+
+        if ($session->user_id !== $request->user()->id) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'QR ini bukan untuk akun Anda.',
+            ], 403);
+        }
+
+        $transaksi = $session->transaksiSetor;
+
+        if (! $transaksi || $transaksi->status !== 'menunggu_konfirmasi') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Transaksi ini sudah tidak menunggu konfirmasi.',
+            ], 400);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'QR valid. Periksa rincian lalu konfirmasi.',
+            'data' => [
+                'token' => $this->qrSessions->normalizeToken($request->token),
+                'expires_at' => $session->expires_at->toIso8601String(),
+                'expires_in' => max(0, (int) now()->diffInSeconds($session->expires_at, false)),
+                'transaksi' => $transaksi,
+            ],
+        ]);
+    }
+
+    /**
+     * User menekan "Konfirmasi" -> koin dicairkan.
+     * Aman dipanggil dua kali: konfirmasi ulang tidak menambah koin lagi.
+     * POST /api/transaksi-setor/konfirmasi
+     */
+    public function konfirmasi(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string|max:255',
+        ]);
+
+        $user = $request->user();
+        $session = $this->qrSessions->findValid($request->token);
+
+        if (! $session) {
+            // Idempotensi: token yang sudah dipakai atau dicabut karena
+            // transaksi telah diselesaikan (mis. fallback admin) tetap
+            // mengembalikan sukses tanpa mencairkan koin lagi.
+            $existing = $this->qrSessions->findLatest($request->token);
+
+            if ($existing && $existing->user_id === $user->id && $existing->transaksiSetor?->status === 'approved') {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Transaksi ini sudah dikonfirmasi/diselesaikan sebelumnya.',
+                    'data' => [
+                        'transaksi' => $existing->transaksiSetor,
+                        'koin_diperoleh' => (float) $existing->transaksiSetor->total_koin,
+                        'sisa_koin' => (float) ($user->wallet?->saldo_koin ?? 0),
+                    ],
+                ]);
+            }
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'QR tidak valid atau sudah kedaluwarsa. Minta admin menerbitkan QR baru.',
+            ], 422);
+        }
+
+        if ($session->user_id !== $user->id) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'QR ini bukan untuk akun Anda.',
+            ], 403);
+        }
+
+        $transaksi = $session->transaksiSetor;
+
+        if (! $transaksi) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Transaksi tidak ditemukan.',
+            ], 404);
+        }
+
+        // Bisa terjadi bila admin memakai fallback saat user masih membuka layar.
+        if ($transaksi->status === 'approved') {
+            $this->qrSessions->consume($session);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Transaksi ini sudah diselesaikan sebelumnya.',
+                'data' => [
+                    'transaksi' => $transaksi,
+                    'koin_diperoleh' => (float) $transaksi->total_koin,
+                    'sisa_koin' => (float) ($user->wallet?->fresh()->saldo_koin ?? 0),
+                ],
+            ]);
+        }
+
+        if ($transaksi->status !== 'menunggu_konfirmasi') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Transaksi ini tidak bisa dikonfirmasi (status: '.$transaksi->status.').',
+            ], 400);
+        }
+
+        $transaksi = $this->settlement->settle($transaksi, 'qr');
+        $this->qrSessions->consume($session);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Konfirmasi berhasil. Koin sudah masuk ke wallet Anda.',
+            'data' => [
+                'transaksi' => $transaksi->fresh(['details.jenisSampah', 'admin']),
+                'koin_diperoleh' => (float) $transaksi->total_koin,
+                'sisa_koin' => (float) ($user->wallet?->fresh()->saldo_koin ?? 0),
+            ],
         ]);
     }
 }

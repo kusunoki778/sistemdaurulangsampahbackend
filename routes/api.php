@@ -78,10 +78,12 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // 4. SETOR SAMPAH OFFLINE (Direct Drop-Off)
+// Admin yang menginput berat di drop point; user hanya memindai QR dan
+// mengonfirmasi nominal. Pengajuan mandiri dari user sudah dipensiunkan.
 Route::middleware('auth:sanctum')->group(function () {
-    // User endpoints
-    Route::post('/transaksi-setor', [TransaksiSetorController::class, 'store']);
     Route::get('/transaksi-setor', [TransaksiSetorController::class, 'index']);
+    Route::post('/transaksi-setor/scan', [TransaksiSetorController::class, 'scan'])->middleware('throttle:60,1');
+    Route::post('/transaksi-setor/konfirmasi', [TransaksiSetorController::class, 'konfirmasi'])->middleware('throttle:60,1');
     Route::get('/transaksi-setor/{id}', [TransaksiSetorController::class, 'show']);
 });
 
@@ -156,10 +158,12 @@ Route::prefix('admin')
         Route::put('/missions/{id}', [AdminController::class, 'missionUpdate']);
         Route::delete('/missions/{id}', [AdminController::class, 'missionDestroy']);
 
-        // Verifikasi Setor Sampah
+        // Verifikasi Setor Sampah (admin input di drop point + QR konfirmasi)
         Route::get('/transaksi-setor', [AdminTransaksiSetorController::class, 'index']);
-        Route::post('/transaksi-setor/{id}/approve', [AdminTransaksiSetorController::class, 'approve']);
-        Route::post('/transaksi-setor/{id}/reject', [AdminTransaksiSetorController::class, 'reject']);
+        Route::post('/transaksi-setor', [AdminTransaksiSetorController::class, 'store']);
+        Route::post('/transaksi-setor/{id}/qr', [AdminTransaksiSetorController::class, 'reissueQr']);
+        Route::post('/transaksi-setor/{id}/selesaikan', [AdminTransaksiSetorController::class, 'selesaikan']);
+        Route::post('/transaksi-setor/{id}/batalkan', [AdminTransaksiSetorController::class, 'batalkan']);
 
         // Verifikasi Permintaan Reward
         Route::get('/permintaan-reward', [AdminPermintaanRewardController::class, 'index']);

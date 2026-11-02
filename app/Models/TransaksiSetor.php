@@ -19,6 +19,8 @@ class TransaksiSetor extends Model
         'admin_id',
         'total_koin',
         'status',
+        'settled_at',
+        'settlement_method',
         'catatan',
         'qr_code',
     ];
@@ -26,6 +28,7 @@ class TransaksiSetor extends Model
     protected $casts = [
         'total_koin' => 'decimal:2',
         'status' => 'string',
+        'settled_at' => 'datetime',
     ];
 
     /**
@@ -55,6 +58,11 @@ class TransaksiSetor extends Model
     public function details(): HasMany
     {
         return $this->hasMany(TransaksiSetorDetail::class, 'transaksi_setor_id');
+    }
+
+    public function qrSessions(): HasMany
+    {
+        return $this->hasMany(QrSession::class, 'transaksi_setor_id');
     }
 
     public function getJenisSampahAttribute(): ?string
