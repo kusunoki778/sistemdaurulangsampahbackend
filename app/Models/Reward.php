@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Reward extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $table = 'rewards';
 
@@ -23,7 +24,7 @@ class Reward extends Model
     ];
 
     protected $casts = [
-        'koin_dibutuhkan' => 'integer',
+        'koin_dibutuhkan' => 'decimal:2',
         'stok' => 'integer',
         'status_aktif' => 'boolean',
     ];
@@ -43,9 +44,9 @@ class Reward extends Model
         return $this->hasMany(PermintaanReward::class, 'reward_id');
     }
 
-    public function getKoinHargaAttribute(): int
+    public function getKoinHargaAttribute(): float
     {
-        return (int) $this->koin_dibutuhkan;
+        return (float) $this->koin_dibutuhkan;
     }
 
     public function getKategoriAttribute(): string

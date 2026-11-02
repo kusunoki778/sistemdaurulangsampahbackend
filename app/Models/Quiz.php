@@ -20,7 +20,7 @@ class Quiz extends Model
     ];
 
     protected $casts = [
-        'koin_reward' => 'integer',
+        'koin_reward' => 'decimal:2',
         'status_aktif' => 'boolean',
     ];
 

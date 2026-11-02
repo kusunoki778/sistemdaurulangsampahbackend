@@ -31,8 +31,8 @@ class WalletController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => [
-                'saldo_koin' => $wallet->saldo_koin,
-                'total_koin_diperoleh' => $wallet->total_koin_diperoleh,
+                'saldo_koin' => (float) $wallet->saldo_koin,
+                'total_koin_diperoleh' => (float) $wallet->total_koin_diperoleh,
                 'total_sampah_kg' => (float) $wallet->total_sampah_kg,
                 'status_member' => $user->status_member ?? 'Bronze',
             ],

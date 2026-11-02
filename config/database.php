@@ -8,6 +8,14 @@ use Pdo\Mysql;
 // - fallback ke database/certs/aiven-mysql-ca.pem di dalam aplikasi.
 // Bila tidak ditemukan, koneksi tetap terenkripsi tanpa verifikasi CA (tidak crash).
 $mysqlSslCa = (static function () {
+    // CA Aiven hanya relevan untuk koneksi remote (produksi). MySQL lokal
+    // memakai sertifikat self-signed sendiri, jadi jangan dipaksa verifikasi
+    // dengan CA Aiven — koneksi lokal akan gagal.
+    $host = (string) env('DB_HOST', '127.0.0.1');
+    if (in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
+        return null;
+    }
+
     $configured = env('MYSQL_ATTR_SSL_CA');
     if (is_string($configured) && $configured !== '' && is_file($configured)) {
         return $configured;

@@ -95,9 +95,9 @@ class User extends Authenticatable
 
     /* --------------------------- Accessor kompatibilitas --------------------------- */
 
-    public function getSaldoKoinAttribute(): int
+    public function getSaldoKoinAttribute(): float
     {
-        return (int) ($this->wallet?->saldo_koin ?? 0);
+        return (float) ($this->wallet?->saldo_koin ?? 0);
     }
 
     public function getSampahTerkumpulKgAttribute(): float

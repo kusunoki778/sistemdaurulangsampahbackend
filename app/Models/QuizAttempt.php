@@ -23,7 +23,7 @@ class QuizAttempt extends Model
     protected $casts = [
         'skor' => 'integer',
         'lulus' => 'boolean',
-        'koin_diperoleh' => 'integer',
+        'koin_diperoleh' => 'decimal:2',
     ];
 
     public function user(): BelongsTo

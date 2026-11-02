@@ -51,8 +51,8 @@ class AdminController extends Controller
                 'total_users' => $totalUsers,
                 'total_members' => $totalUsers,
                 'total_admins' => $totalAdmins,
-                'total_koin_beredar' => (int) ($walletStats->total_koin_beredar ?? 0),
-                'total_koin_diperoleh' => (int) ($walletStats->total_koin_diperoleh ?? 0),
+                'total_koin_beredar' => (float) ($walletStats->total_koin_beredar ?? 0),
+                'total_koin_diperoleh' => (float) ($walletStats->total_koin_diperoleh ?? 0),
                 'total_sampah_kg' => (float) ($walletStats->total_sampah_kg ?? 0),
                 'total_minyak_liter' => $totalMinyakLiter,
                 'pending_setor' => $pendingSetor,
@@ -88,7 +88,7 @@ class AdminController extends Controller
                 'total_members' => $totalMembers,
                 'total_sampah_kg' => (float) ($walletStats->total_sampah_kg ?? 0),
                 'total_minyak_liter' => $totalMinyakLiter,
-                'total_koin_beredar' => (int) ($walletStats->total_koin_beredar ?? 0),
+                'total_koin_beredar' => (float) ($walletStats->total_koin_beredar ?? 0),
             ],
         ]);
     }
@@ -184,7 +184,7 @@ class AdminController extends Controller
             'kategori_id' => 'required|exists:kategori_sampah,id',
             'nama_jenis' => 'required|string|max:100',
             'satuan' => 'required|in:kg,liter,pcs',
-            'poin_per_satuan' => 'required|integer|min:1',
+            'poin_per_satuan' => 'required|numeric|min:0.01',
             'deskripsi' => 'nullable|string',
             'gambar' => 'nullable|string',
             'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
@@ -203,7 +203,7 @@ class AdminController extends Controller
             'kategori_id' => 'sometimes|required|exists:kategori_sampah,id',
             'nama_jenis' => 'sometimes|required|string|max:100',
             'satuan' => 'sometimes|required|in:kg,liter,pcs',
-            'poin_per_satuan' => 'sometimes|required|integer|min:1',
+            'poin_per_satuan' => 'sometimes|required|numeric|min:0.01',
             'deskripsi' => 'nullable|string',
             'gambar' => 'nullable|string',
             'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
@@ -241,7 +241,7 @@ class AdminController extends Controller
         $request->validate([
             'nama_reward' => 'required|string|max:150',
             'tipe' => 'required|in:barang,voucher,saldo_digital',
-            'koin_dibutuhkan' => 'required|integer|min:1',
+            'koin_dibutuhkan' => 'required|numeric|min:0.01',
             'stok' => 'required|integer|min:0',
             'gambar' => 'nullable|string',
             'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
@@ -261,7 +261,7 @@ class AdminController extends Controller
         $request->validate([
             'nama_reward' => 'sometimes|required|string|max:150',
             'tipe' => 'sometimes|required|in:barang,voucher,saldo_digital',
-            'koin_dibutuhkan' => 'sometimes|required|integer|min:1',
+            'koin_dibutuhkan' => 'sometimes|required|numeric|min:0.01',
             'stok' => 'sometimes|required|integer|min:0',
             'gambar' => 'nullable|string',
             'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
@@ -301,7 +301,7 @@ class AdminController extends Controller
         $request->validate([
             'judul' => 'required|string',
             'deskripsi' => 'nullable|string',
-            'koin_reward' => 'required|integer|min:0',
+            'koin_reward' => 'required|numeric|min:0',
             'status_aktif' => 'boolean',
         ]);
         $quiz = Quiz::create($request->only(['judul', 'deskripsi', 'koin_reward', 'status_aktif']));
@@ -315,7 +315,7 @@ class AdminController extends Controller
         $request->validate([
             'judul' => 'sometimes|required|string',
             'deskripsi' => 'nullable|string',
-            'koin_reward' => 'sometimes|required|integer|min:0',
+            'koin_reward' => 'sometimes|required|numeric|min:0',
             'status_aktif' => 'boolean',
         ]);
         $quiz->update($request->only(['judul', 'deskripsi', 'koin_reward', 'status_aktif']));
@@ -354,7 +354,7 @@ class AdminController extends Controller
             'deskripsi' => 'nullable|string',
             'tipe' => 'required|in:daily,weekly',
             'target_jumlah' => 'required|integer|min:1',
-            'koin_reward' => 'required|integer|min:0',
+            'koin_reward' => 'required|numeric|min:0',
             'status_aktif' => 'boolean',
         ]);
         $mission = Mission::create($request->only(['judul', 'deskripsi', 'tipe', 'target_jumlah', 'koin_reward', 'status_aktif']));
@@ -370,7 +370,7 @@ class AdminController extends Controller
             'deskripsi' => 'nullable|string',
             'tipe' => 'sometimes|required|in:daily,weekly',
             'target_jumlah' => 'sometimes|required|integer|min:1',
-            'koin_reward' => 'sometimes|required|integer|min:0',
+            'koin_reward' => 'sometimes|required|numeric|min:0',
             'status_aktif' => 'boolean',
         ]);
         $mission->update($request->only(['judul', 'deskripsi', 'tipe', 'target_jumlah', 'koin_reward', 'status_aktif']));

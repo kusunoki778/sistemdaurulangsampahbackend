@@ -30,7 +30,7 @@ class JenisSampahController extends Controller
             'kategori_id' => 'required|exists:kategori_sampah,id',
             'nama_jenis' => 'required|string|max:100',
             'satuan' => 'required|in:kg,liter,pcs',
-            'poin_per_satuan' => 'required|integer|min:1',
+            'poin_per_satuan' => 'required|numeric|min:0.01',
             'deskripsi' => 'nullable|string',
             'gambar' => 'nullable|string',
         ]);
@@ -64,7 +64,7 @@ class JenisSampahController extends Controller
             'kategori_id' => 'sometimes|required|exists:kategori_sampah,id',
             'nama_jenis' => 'sometimes|required|string|max:100',
             'satuan' => 'sometimes|required|in:kg,liter,pcs',
-            'poin_per_satuan' => 'sometimes|required|integer|min:1',
+            'poin_per_satuan' => 'sometimes|required|numeric|min:0.01',
             'deskripsi' => 'nullable|string',
             'gambar' => 'nullable|string',
         ]);

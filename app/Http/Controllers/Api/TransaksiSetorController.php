@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\JenisSampah;
 use App\Models\TransaksiSetor;
 use App\Models\TransaksiSetorDetail;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -36,8 +35,9 @@ class TransaksiSetorController extends Controller
         $user = $request->user();
 
         return DB::transaction(function () use ($request, $user) {
-            // Generate kode transaksi
-            $kode = 'TRX-S-'.Carbon::now()->format('Ymd').'-'.str_pad(TransaksiSetor::count() + 1, 3, '0', STR_PAD_LEFT);
+            // Kode transaksi acak — pola count()+1 rawan duplikat saat
+            // dua transaksi dibuat bersamaan.
+            $kode = 'TRX-S-'.now()->format('Ymd').'-'.strtoupper(bin2hex(random_bytes(3)));
 
             $transaksi = TransaksiSetor::create([
                 'kode_transaksi' => $kode,
@@ -53,7 +53,7 @@ class TransaksiSetorController extends Controller
             foreach ($request->items as $item) {
                 $jenis = JenisSampah::find($item['jenis_sampah_id']);
                 $jumlah = (float) $item['jumlah'];
-                $koinSubtotal = (int) round($jenis->poin_per_satuan * $jumlah);
+                $koinSubtotal = round($jenis->poin_per_satuan * $jumlah, 2);
 
                 TransaksiSetorDetail::create([
                     'transaksi_setor_id' => $transaksi->id,

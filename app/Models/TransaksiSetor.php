@@ -24,7 +24,7 @@ class TransaksiSetor extends Model
     ];
 
     protected $casts = [
-        'total_koin' => 'integer',
+        'total_koin' => 'decimal:2',
         'status' => 'string',
     ];
 
@@ -86,9 +86,9 @@ class TransaksiSetor extends Model
         return optional($items->first()?->jenisSampah)->satuan;
     }
 
-    public function getKoinEstimasiAttribute(): int
+    public function getKoinEstimasiAttribute(): float
     {
-        return (int) $this->total_koin;
+        return (float) $this->total_koin;
     }
 
     public function getAlasanAdminAttribute(): ?string

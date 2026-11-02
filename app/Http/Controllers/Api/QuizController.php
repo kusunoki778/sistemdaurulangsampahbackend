@@ -98,7 +98,7 @@ class QuizController extends Controller
 
         $skor = $total > 0 ? (int) round(($benar / $total) * 100) : 0;
         $lulus = $benar >= ceil($total * 0.7); // Lulus jika >= 70% benar
-        $koinDiperoleh = $lulus ? $quiz->koin_reward : 0;
+        $koinDiperoleh = $lulus ? (float) $quiz->koin_reward : 0;
 
         return DB::transaction(function () use ($user, $quiz, $skor, $lulus, $koinDiperoleh, $benar, $total) {
             // Buat attempt

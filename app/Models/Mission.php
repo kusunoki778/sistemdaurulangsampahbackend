@@ -23,7 +23,7 @@ class Mission extends Model
 
     protected $casts = [
         'target_jumlah' => 'integer',
-        'koin_reward' => 'integer',
+        'koin_reward' => 'decimal:2',
         'status_aktif' => 'boolean',
     ];
 

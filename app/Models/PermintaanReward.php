@@ -23,7 +23,7 @@ class PermintaanReward extends Model
     ];
 
     protected $casts = [
-        'koin_ditukar' => 'integer',
+        'koin_ditukar' => 'decimal:2',
     ];
 
     /**
@@ -48,9 +48,9 @@ class PermintaanReward extends Model
         return $this->belongsTo(Reward::class, 'reward_id');
     }
 
-    public function getKoinTerpakaiAttribute(): int
+    public function getKoinTerpakaiAttribute(): float
     {
-        return (int) $this->koin_ditukar;
+        return (float) $this->koin_ditukar;
     }
 
     public function getKodeVoucherAttribute(): ?string

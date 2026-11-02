@@ -21,7 +21,7 @@ class TransaksiSetorDetail extends Model
 
     protected $casts = [
         'jumlah' => 'decimal:2',
-        'koin_subtotal' => 'integer',
+        'koin_subtotal' => 'decimal:2',
     ];
 
     public function transaksiSetor(): BelongsTo

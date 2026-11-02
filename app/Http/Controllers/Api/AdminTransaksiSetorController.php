@@ -50,7 +50,11 @@ class AdminTransaksiSetorController extends Controller
         ]);
 
         return DB::transaction(function () use ($request, $id) {
-            $transaksi = TransaksiSetor::with(['details.jenisSampah', 'user'])->findOrFail($id);
+            // Kunci baris transaksi & wallet selama proses agar dua approve
+            // bersamaan tidak menambah koin dua kali.
+            $transaksi = TransaksiSetor::with(['details.jenisSampah', 'user'])
+                ->lockForUpdate()
+                ->findOrFail($id);
 
             if ($transaksi->status !== 'pending') {
                 return response()->json([
@@ -69,7 +73,7 @@ class AdminTransaksiSetorController extends Controller
                     $detail = $transaksi->details->find($detailInput['id']);
                     if ($detail) {
                         $jumlahValid = (float) $detailInput['jumlah_valid'];
-                        $koinSubtotal = (int) round($detail->jenisSampah->poin_per_satuan * $jumlahValid);
+                        $koinSubtotal = round($detail->jenisSampah->poin_per_satuan * $jumlahValid, 2);
 
                         $detail->update([
                             'jumlah' => $jumlahValid,
@@ -112,7 +116,7 @@ class AdminTransaksiSetorController extends Controller
             ]);
 
             // Update wallet user
-            $wallet = $user->wallet;
+            $wallet = Wallet::where('user_id', $user->id)->lockForUpdate()->first();
             if (! $wallet) {
                 $wallet = Wallet::create([
                     'user_id' => $user->id,

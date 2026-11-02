@@ -22,7 +22,7 @@ class TransaksiKoin extends Model
     ];
 
     protected $casts = [
-        'jumlah_koin' => 'integer',
+        'jumlah_koin' => 'decimal:2',
         'referensi_id' => 'integer',
     ];
 

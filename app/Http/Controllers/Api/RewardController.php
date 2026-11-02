@@ -51,7 +51,7 @@ class RewardController extends Controller
         $request->validate([
             'nama_reward' => 'required|string|max:150',
             'tipe' => 'required|in:barang,voucher,saldo_digital',
-            'koin_dibutuhkan' => 'required|integer|min:1',
+            'koin_dibutuhkan' => 'required|numeric|min:0.01',
             'stok' => 'required|integer|min:0',
             'gambar' => 'nullable|string',
             'deskripsi' => 'nullable|string',
@@ -80,7 +80,7 @@ class RewardController extends Controller
         $request->validate([
             'nama_reward' => 'sometimes|required|string|max:150',
             'tipe' => 'sometimes|required|in:barang,voucher,saldo_digital',
-            'koin_dibutuhkan' => 'sometimes|required|integer|min:1',
+            'koin_dibutuhkan' => 'sometimes|required|numeric|min:0.01',
             'stok' => 'sometimes|required|integer|min:0',
             'gambar' => 'nullable|string',
             'deskripsi' => 'nullable|string',

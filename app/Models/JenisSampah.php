@@ -23,7 +23,7 @@ class JenisSampah extends Model
     ];
 
     protected $casts = [
-        'poin_per_satuan' => 'integer',
+        'poin_per_satuan' => 'decimal:2',
     ];
 
     /**
@@ -51,8 +51,8 @@ class JenisSampah extends Model
         return $this->nama_jenis;
     }
 
-    public function getKoinPerSatuanAttribute(): int
+    public function getKoinPerSatuanAttribute(): float
     {
-        return (int) $this->poin_per_satuan;
+        return (float) $this->poin_per_satuan;
     }
 }

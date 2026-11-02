@@ -34,16 +34,20 @@ class MissionController extends Controller
                     ->where('status', 'approved')
                     ->count();
 
-                $progress = MissionProgress::updateOrCreate(
-                    [
-                        'user_id' => $user->id,
-                        'mission_id' => $mission->id,
-                    ],
-                    [
-                        'progress' => max($totalSetor, 0),
-                        'status' => $totalSetor >= $mission->target_jumlah ? 'ready' : 'ongoing',
-                    ]
-                );
+                $progress = MissionProgress::firstOrNew([
+                    'user_id' => $user->id,
+                    'mission_id' => $mission->id,
+                ]);
+
+                $progress->progress = max($totalSetor, 0);
+
+                // Jangan menimpa status 'claimed' — jika ditimpa, hadiah yang
+                // sudah diklaim bisa diklaim ulang pada pemuatan berikutnya.
+                if ($progress->status !== 'claimed') {
+                    $progress->status = $totalSetor >= $mission->target_jumlah ? 'completed' : 'ongoing';
+                }
+
+                $progress->save();
 
                 $currentProgress = $progress->progress;
                 $progressStatus = $progress->status;
@@ -65,7 +69,7 @@ class MissionController extends Controller
                 'deskripsi' => $mission->deskripsi,
                 'tipe' => $mission->tipe,
                 'target_jumlah' => $mission->target_jumlah,
-                'koin_reward' => $mission->koin_reward,
+                'koin_reward' => (float) $mission->koin_reward,
                 'progress' => min($currentProgress, $mission->target_jumlah),
                 'status' => $progressStatus,
                 'is_completed' => $isCompleted,
@@ -88,38 +92,40 @@ class MissionController extends Controller
         $user = $request->user();
         $mission = Mission::where('status_aktif', true)->findOrFail($id);
 
-        $progress = MissionProgress::where('user_id', $user->id)
-            ->where('mission_id', $mission->id)
-            ->first();
+        return DB::transaction(function () use ($user, $mission) {
+            // Kunci baris progress & wallet agar klaim ganda tidak lolos.
+            $progress = MissionProgress::where('user_id', $user->id)
+                ->where('mission_id', $mission->id)
+                ->lockForUpdate()
+                ->first();
 
-        if (! $progress) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Misi belum dimulai',
-            ], 400);
-        }
+            if (! $progress) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Misi belum dimulai',
+                ], 400);
+            }
 
-        if ($progress->progress < $mission->target_jumlah) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Misi belum selesai',
-            ], 400);
-        }
+            if ($progress->progress < $mission->target_jumlah) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Misi belum selesai',
+                ], 400);
+            }
 
-        if ($progress->status === 'claimed') {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Hadiah misi sudah diklaim',
-            ], 400);
-        }
+            if ($progress->status === 'claimed') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Hadiah misi sudah diklaim',
+                ], 400);
+            }
 
-        return DB::transaction(function () use ($user, $mission, $progress) {
             $progress->update([
                 'status' => 'claimed',
             ]);
 
             // Tambah koin ke wallet
-            $wallet = $user->wallet;
+            $wallet = Wallet::where('user_id', $user->id)->lockForUpdate()->first();
             if (! $wallet) {
                 $wallet = Wallet::create([
                     'user_id' => $user->id,
@@ -145,8 +151,8 @@ class MissionController extends Controller
                 'message' => 'Hadiah misi berhasil diklaim!',
                 'data' => [
                     'progress' => $progress,
-                    'koin_diperoleh' => $mission->koin_reward,
-                    'sisa_koin' => $wallet->fresh()->saldo_koin,
+                    'koin_diperoleh' => (float) $mission->koin_reward,
+                    'sisa_koin' => (float) $wallet->fresh()->saldo_koin,
                 ],
             ]);
         });

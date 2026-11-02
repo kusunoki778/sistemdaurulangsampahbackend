@@ -21,8 +21,8 @@ class Wallet extends Model
     ];
 
     protected $casts = [
-        'saldo_koin' => 'integer',
-        'total_koin_diperoleh' => 'integer',
+        'saldo_koin' => 'decimal:2',
+        'total_koin_diperoleh' => 'decimal:2',
         'total_sampah_kg' => 'decimal:2',
     ];
 
