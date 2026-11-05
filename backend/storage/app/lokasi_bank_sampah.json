@@ -1,0 +1,129 @@
+[
+    {
+        "id": 1,
+        "nama": "Bank Sampah Induk Livora Kebon Jeruk",
+        "alamat": "Jl. Kebon Jeruk Raya No. 45, Jakarta Barat",
+        "kota": "Jakarta Barat",
+        "jam_operasional": "08:00 - 16:00 WIB",
+        "hari_operasional": "Senin - Sabtu",
+        "status": "Buka",
+        "telepon": "0812-8822-1010",
+        "email": "kebonjeruk@livora.id",
+        "jenis_sampah": [
+            "Minyak Jelantah",
+            "Botol Plastik",
+            "Kardus",
+            "Kaleng Aluminium",
+            "Kertas Bekas"
+        ],
+        "layanan_jemput": true,
+        "fasilitas": [
+            "Timbangan Digital Presisi",
+            "Ruang Edukasi Kompos",
+            "Drive-Thru Drop Point",
+            "Pencairan Koin Cepat"
+        ],
+        "koordinat": "-6.1954, 106.7725",
+        "catatan": "Pusat pengumpulan utama dengan armada pick-up ready setiap hari kerja."
+    },
+    {
+        "id": 2,
+        "nama": "Drop Point Livora Tebet Eco Park",
+        "alamat": "Jl. Tebet Barat Raya No. 18, Jakarta Selatan",
+        "kota": "Jakarta Selatan",
+        "jam_operasional": "07:30 - 17:00 WIB",
+        "hari_operasional": "Setiap Hari (Senin - Minggu)",
+        "status": "Buka",
+        "telepon": "0813-7744-2020",
+        "email": "tebet@livora.id",
+        "jenis_sampah": [
+            "Minyak Jelantah",
+            "Botol Plastik",
+            "Kaleng Aluminium",
+            "Kardus"
+        ],
+        "layanan_jemput": true,
+        "fasilitas": [
+            "Smart Waste Bin",
+            "Voucher Reward Kiosk",
+            "Area Parkir Sepeda & Motor"
+        ],
+        "koordinat": "-6.2369, 106.8532",
+        "catatan": "Sangat cocok untuk warga Tebet dan pengunjung taman kota."
+    },
+    {
+        "id": 3,
+        "nama": "Bank Sampah Livora Rawamangun Mandiri",
+        "alamat": "Jl. Pemuda No. 72, Rawamangun, Jakarta Timur",
+        "kota": "Jakarta Timur",
+        "jam_operasional": "08:30 - 15:30 WIB",
+        "hari_operasional": "Senin - Jumat",
+        "status": "Buka",
+        "telepon": "0815-9933-3030",
+        "email": "rawamangun@livora.id",
+        "jenis_sampah": [
+            "Minyak Jelantah",
+            "Botol Plastik",
+            "Kertas Bekas",
+            "Kardus"
+        ],
+        "layanan_jemput": false,
+        "fasilitas": [
+            "Timbangan Manual & Digital",
+            "Workshop Daur Ulang Sabun Jelantah"
+        ],
+        "koordinat": "-6.1983, 106.8867",
+        "catatan": "Bekerja sama dengan RW 05 Rawamangun untuk pemilahan organik & anorganik."
+    },
+    {
+        "id": 4,
+        "nama": "Drop Point Livora Serpong BSD City",
+        "alamat": "Ruko Golden Boulevard Blok W No. 12, BSD City, Tangerang Selatan",
+        "kota": "Tangerang Selatan",
+        "jam_operasional": "09:00 - 17:00 WIB",
+        "hari_operasional": "Selasa - Minggu",
+        "status": "Buka",
+        "telepon": "0818-4455-6060",
+        "email": "serpong@livora.id",
+        "jenis_sampah": [
+            "Minyak Jelantah",
+            "Botol Plastik",
+            "Kardus",
+            "Kaleng Aluminium",
+            "Kertas Bekas"
+        ],
+        "layanan_jemput": true,
+        "fasilitas": [
+            "Drop Box 24 Jam Khusus Botol PET",
+            "Kafe Komunitas Daur Ulang",
+            "Parkir Luas"
+        ],
+        "koordinat": "-6.3012, 106.6631",
+        "catatan": "Menyediakan jemputan gratis untuk volume sampah di atas 10 Kg."
+    },
+    {
+        "id": 5,
+        "nama": "Bank Sampah Livora Kelapa Gading Lestari",
+        "alamat": "Jl. Boulevard Raya Blok QJ No. 8, Kelapa Gading, Jakarta Utara",
+        "kota": "Jakarta Utara",
+        "jam_operasional": "08:00 - 16:30 WIB",
+        "hari_operasional": "Senin - Sabtu",
+        "status": "Buka",
+        "telepon": "0819-1122-8080",
+        "email": "kelapagading@livora.id",
+        "jenis_sampah": [
+            "Minyak Jelantah",
+            "Botol Plastik",
+            "Kardus",
+            "Kaleng Aluminium"
+        ],
+        "layanan_jemput": true,
+        "fasilitas": [
+            "Penampungan Drum Jelantah Food-Grade",
+            "Area Edukasi Anak",
+            "Layanan Pick-up UMKM"
+        ],
+        "koordinat": "-6.1611, 106.9056",
+        "catatan": "Fokus penyerapan minyak jelantah dari sentra kuliner Kelapa Gading."
+    }
+]
