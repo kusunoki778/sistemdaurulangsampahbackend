@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AdminTopUpController;
 use App\Http\Controllers\Api\AdminTransaksiSetorController;
 use App\Http\Controllers\Api\ArtikelController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\DailyLoginController;
 use App\Http\Controllers\Api\JenisSampahController;
 use App\Http\Controllers\Api\KategoriSampahController;
@@ -101,7 +102,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/transaksi-setor/{id}', [TransaksiSetorController::class, 'show']);
 });
 
-// 5. REWARD & KLAIM
+// 6. CHAT (publik, rate-limited)
+Route::post('/chat', [ChatController::class, 'chat'])->middleware('throttle:10,1');
 // Katalog reward bersifat publik (bisa dilihat tanpa login)
 Route::get('/rewards', [RewardController::class, 'index']);
 Route::get('/rewards/{id}', [RewardController::class, 'show']);
