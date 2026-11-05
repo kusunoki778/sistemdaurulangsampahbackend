@@ -200,6 +200,44 @@ class AuthController extends Controller
     }
 
     /**
+     * Ubah password (verifikasi password lama dulu).
+     * POST /api/auth/change-password
+     */
+    public function changePassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'password_lama' => 'required|string',
+            'password_baru' => 'required|string|min:8|confirmed',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Data tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = $request->user();
+
+        if (! Hash::check($request->password_lama, $user->password)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Password lama tidak sesuai.',
+                'errors' => ['password_lama' => ['Password lama tidak sesuai.']],
+            ], 422);
+        }
+
+        $user->password = Hash::make($request->password_baru);
+        $user->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Password berhasil diubah.',
+        ]);
+    }
+
+    /**
      * Lupa password: kirim tautan atur ulang ke email user (mandiri,
      * tanpa campur tangan admin — sesuai keputusan keamanan proyek).
      * POST /api/auth/forgot-password
