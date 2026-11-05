@@ -129,6 +129,44 @@ class RewardClaimService
     }
 
     /**
+     * Susun data struk untuk transaksi yang sudah selesai.
+     * Payout digital memakai label simulasi; nomor e-wallet tampil lengkap
+     * di sini (di daftar riwayat user disamarkan).
+     */
+    public function buatStruk(PermintaanReward $permintaan): array
+    {
+        $permintaan->load(['reward', 'user']);
+
+        $fisik = $permintaan->reward?->tipe === 'barang';
+        $nilaiRupiah = $permintaan->reward?->nilai_rupiah;
+
+        return [
+            'nomor_struk' => $permintaan->struk_nomor,
+            'jenis' => $fisik ? 'pickup_fisik' : 'payout_digital',
+            'judul' => $fisik ? 'Bukti Pengambilan Reward' : 'Struk Pencairan Saldo Digital',
+            'simulasi' => ! $fisik,
+            'status' => 'selesai',
+            'tanggal' => ($permintaan->selesai_at ?? $permintaan->confirmed_at)?->toIso8601String(),
+            'kode_klaim' => $permintaan->kode_klaim,
+            'member' => [
+                'nama' => $permintaan->user?->name,
+                'username' => $permintaan->user?->username,
+            ],
+            'reward' => [
+                'nama' => $permintaan->reward?->nama_reward,
+                'tipe' => $permintaan->reward?->tipe,
+                'nilai_rupiah' => $nilaiRupiah !== null ? (float) $nilaiRupiah : null,
+            ],
+            'koin' => (float) $permintaan->koin_ditukar,
+            'nomor_tujuan' => $fisik ? null : $permintaan->nomor_tujuan_digital,
+            'metode' => $fisik
+                ? 'Pengambilan langsung di titik Livora'
+                : 'Simulasi Disbursement via Admin CMS',
+            'catatan' => $permintaan->catatan_admin,
+        ];
+    }
+
+    /**
      * Evaluasi kupon kedaluwarsa milik satu user (lazy expiry, tanpa cron).
      */
     public function expireDueForUser(int $userId): int
@@ -200,6 +238,14 @@ class RewardClaimService
                 ]);
             }
 
+            // Alur payout digital wajib melewati "diproses" dulu (pending ->
+            // diproses -> selesai). Reward fisik boleh langsung selesai.
+            if ($locked->reward?->tipe !== 'barang' && $locked->status === 'pending') {
+                throw ValidationException::withMessages([
+                    'status' => 'Proses payout terlebih dahulu sebelum menandai selesai.',
+                ]);
+            }
+
             if ($locked->expires_at && $locked->expires_at->isPast()) {
                 throw ValidationException::withMessages([
                     'status' => 'Kupon sudah kedaluwarsa. Muat ulang data untuk melihat status terbaru.',
@@ -228,7 +274,86 @@ class RewardClaimService
                 'status' => 'selesai',
                 'koin_ditahan' => 0,
                 'confirmed_at' => now(),
+                'selesai_at' => now(),
+                'struk_nomor' => $locked->struk_nomor ?: $this->buatNomorStruk(),
                 'catatan_admin' => $catatan ?: 'Reward telah diserahkan dan koin resmi dipotong.',
+            ]);
+
+            return $locked->fresh(['reward', 'user']);
+        });
+    }
+
+    /**
+     * Admin mulai memproses payout reward digital (simulasi).
+     * pending -> diproses.
+     */
+    public function proses(PermintaanReward $permintaan, ?string $catatan = null): PermintaanReward
+    {
+        return DB::transaction(function () use ($permintaan, $catatan) {
+            $locked = PermintaanReward::with('reward')->lockForUpdate()->findOrFail($permintaan->id);
+
+            if ($locked->status !== 'pending') {
+                throw ValidationException::withMessages([
+                    'status' => 'Hanya permintaan berstatus pending yang bisa diproses (status: '.$locked->status.').',
+                ]);
+            }
+
+            if ($locked->reward?->tipe === 'barang') {
+                throw ValidationException::withMessages([
+                    'status' => 'Reward fisik diproses lewat kupon + QR pickup, bukan payout digital.',
+                ]);
+            }
+
+            $locked->update([
+                'status' => 'diproses',
+                'diproses_at' => now(),
+                'catatan_admin' => $catatan ?: 'Payout disimulasikan: admin sedang memproses pencairan.',
+            ]);
+
+            return $locked->fresh(['reward', 'user']);
+        });
+    }
+
+    /**
+     * Payout digital gagal -> refund koin + kembalikan stok + status gagal.
+     */
+    public function tandaiGagal(PermintaanReward $permintaan, string $alasan): PermintaanReward
+    {
+        return DB::transaction(function () use ($permintaan, $alasan) {
+            $locked = PermintaanReward::lockForUpdate()->findOrFail($permintaan->id);
+
+            if (! in_array($locked->status, ['pending', 'diproses'], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Permintaan ini tidak bisa ditandai gagal (status: '.$locked->status.').',
+                ]);
+            }
+
+            if (round((float) $locked->koin_ditahan, 2) > 0) {
+                throw ValidationException::withMessages([
+                    'status' => 'Reward fisik yang masih menahan koin harus dibatalkan lewat menu Batalkan.',
+                ]);
+            }
+
+            $reward = $this->lockReward($locked);
+
+            $wallet = $this->lockWallet($locked->user);
+            $wallet->increment('saldo_koin', $locked->koin_ditukar);
+
+            TransaksiKoin::create([
+                'user_id' => $locked->user_id,
+                'tipe' => 'masuk',
+                'jumlah_koin' => $locked->koin_ditukar,
+                'sumber' => 'refund',
+                'referensi_id' => $locked->id,
+                'keterangan' => 'REFUND: Payout reward digital gagal.',
+            ]);
+
+            $this->kembalikanStok($reward);
+
+            $locked->update([
+                'status' => 'gagal',
+                'gagal_at' => now(),
+                'catatan_admin' => $alasan,
             ]);
 
             return $locked->fresh(['reward', 'user']);
@@ -379,6 +504,19 @@ class RewardClaimService
         }
 
         throw new RuntimeException('Gagal membuat kode kupon unik.');
+    }
+
+    private function buatNomorStruk(): string
+    {
+        for ($percobaan = 0; $percobaan < 10; $percobaan++) {
+            $nomor = 'STR-'.now()->format('Ymd').'-'.strtoupper(bin2hex(random_bytes(3)));
+
+            if (! PermintaanReward::where('struk_nomor', $nomor)->exists()) {
+                return $nomor;
+            }
+        }
+
+        throw new RuntimeException('Gagal membuat nomor struk unik.');
     }
 
     private function formatKoin(float $nilai): string

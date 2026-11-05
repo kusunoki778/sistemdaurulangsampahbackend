@@ -249,13 +249,14 @@ class AdminController extends Controller
             'nama_reward' => 'required|string|max:150',
             'tipe' => 'required|in:barang,voucher,saldo_digital',
             'koin_dibutuhkan' => 'required|numeric|min:0.01',
+            'nilai_rupiah' => 'nullable|numeric|min:0',
             'stok' => 'required|integer|min:0',
             'gambar' => 'nullable|string',
             'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'deskripsi' => 'nullable|string',
             'status_aktif' => 'boolean',
         ]);
-        $data = $request->only(['nama_reward', 'tipe', 'koin_dibutuhkan', 'stok', 'deskripsi', 'status_aktif']);
+        $data = $request->only(['nama_reward', 'tipe', 'koin_dibutuhkan', 'nilai_rupiah', 'stok', 'deskripsi', 'status_aktif']);
         $data['gambar'] = app(CloudinaryService::class)->resolveGambar($request, config('services.cloudinary.folder_reward'));
         $reward = Reward::create($data);
 
@@ -269,13 +270,14 @@ class AdminController extends Controller
             'nama_reward' => 'sometimes|required|string|max:150',
             'tipe' => 'sometimes|required|in:barang,voucher,saldo_digital',
             'koin_dibutuhkan' => 'sometimes|required|numeric|min:0.01',
+            'nilai_rupiah' => 'nullable|numeric|min:0',
             'stok' => 'sometimes|required|integer|min:0',
             'gambar' => 'nullable|string',
             'gambar_file' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'deskripsi' => 'nullable|string',
             'status_aktif' => 'boolean',
         ]);
-        $data = $request->only(['nama_reward', 'tipe', 'koin_dibutuhkan', 'stok', 'deskripsi', 'status_aktif']);
+        $data = $request->only(['nama_reward', 'tipe', 'koin_dibutuhkan', 'nilai_rupiah', 'stok', 'deskripsi', 'status_aktif']);
         $data['gambar'] = app(CloudinaryService::class)->resolveGambar($request, config('services.cloudinary.folder_reward'));
         $reward->update($data);
 

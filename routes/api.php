@@ -103,6 +103,9 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('throttle:30,1');
     Route::post('/permintaan-reward/konfirmasi', [PermintaanRewardController::class, 'konfirmasi'])
         ->middleware('throttle:30,1');
+
+    // Struk reward (payout digital = Simulasi; admin juga boleh melihat)
+    Route::get('/permintaan-reward/{id}/struk', [PermintaanRewardController::class, 'struk']);
 });
 
 // 6. GAMIFIKASI (user login)
@@ -177,7 +180,9 @@ Route::prefix('admin')
         Route::put('/permintaan-reward/pengaturan', [AdminPermintaanRewardController::class, 'simpanPengaturan']);
         Route::get('/permintaan-reward/kupon/{kode}', [AdminPermintaanRewardController::class, 'cariKupon']);
         Route::post('/permintaan-reward/{id}/qr', [AdminPermintaanRewardController::class, 'terbitkanQr']);
+        Route::post('/permintaan-reward/{id}/proses', [AdminPermintaanRewardController::class, 'proses']);
         Route::post('/permintaan-reward/{id}/selesai', [AdminPermintaanRewardController::class, 'selesai']);
+        Route::post('/permintaan-reward/{id}/gagal', [AdminPermintaanRewardController::class, 'tandaiGagal']);
         Route::post('/permintaan-reward/{id}/batalkan', [AdminPermintaanRewardController::class, 'batalkan']);
 
         // Pesan Kontak

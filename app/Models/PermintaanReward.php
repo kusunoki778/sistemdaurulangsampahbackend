@@ -15,6 +15,7 @@ class PermintaanReward extends Model
 
     protected $fillable = [
         'kode_klaim',
+        'struk_nomor',
         'user_id',
         'reward_id',
         'koin_ditukar',
@@ -22,6 +23,9 @@ class PermintaanReward extends Model
         'status',
         'expires_at',
         'confirmed_at',
+        'diproses_at',
+        'selesai_at',
+        'gagal_at',
         'nomor_tujuan_digital',
         'catatan_admin',
     ];
@@ -31,6 +35,9 @@ class PermintaanReward extends Model
         'koin_ditahan' => 'decimal:2',
         'expires_at' => 'datetime',
         'confirmed_at' => 'datetime',
+        'diproses_at' => 'datetime',
+        'selesai_at' => 'datetime',
+        'gagal_at' => 'datetime',
     ];
 
     /**
@@ -87,6 +94,27 @@ class PermintaanReward extends Model
     public function getBerlakuSampaiAttribute(): ?string
     {
         return $this->expires_at?->toIso8601String();
+    }
+
+    /**
+     * Nomor e-wallet yang disamarkan untuk daftar riwayat user.
+     * Nomor lengkap hanya tampil di struk dan di sisi admin.
+     */
+    public function getNomorTujuanTersamarAttribute(): ?string
+    {
+        $nomor = (string) ($this->nomor_tujuan_digital ?? '');
+
+        if ($nomor === '') {
+            return null;
+        }
+
+        if (strlen($nomor) <= 8) {
+            return str_repeat('•', max(2, strlen($nomor) - 2)).substr($nomor, -2);
+        }
+
+        return substr($nomor, 0, 4)
+            .str_repeat('•', max(4, strlen($nomor) - 8))
+            .substr($nomor, -4);
     }
 
     /**

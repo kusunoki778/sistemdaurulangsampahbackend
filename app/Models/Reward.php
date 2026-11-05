@@ -17,6 +17,7 @@ class Reward extends Model
         'nama_reward',
         'tipe',
         'koin_dibutuhkan',
+        'nilai_rupiah',
         'stok',
         'gambar',
         'deskripsi',
@@ -25,6 +26,7 @@ class Reward extends Model
 
     protected $casts = [
         'koin_dibutuhkan' => 'decimal:2',
+        'nilai_rupiah' => 'decimal:2',
         'stok' => 'integer',
         'status_aktif' => 'boolean',
     ];

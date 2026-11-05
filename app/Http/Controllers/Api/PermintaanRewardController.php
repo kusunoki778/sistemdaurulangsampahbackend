@@ -53,6 +53,7 @@ class PermintaanRewardController extends Controller
 
     /**
      * Riwayat penukaran reward user (sekaligus evaluasi kupon kedaluwarsa).
+     * Nomor e-wallet disamarkan di daftar; nomor lengkap hanya di struk.
      * GET /api/permintaan-reward
      */
     public function index(Request $request)
@@ -69,11 +70,14 @@ class PermintaanRewardController extends Controller
             $query->where('status', $request->status);
         }
 
+        $data = $query->paginate(15);
+        $data->getCollection()->each(fn ($p) => $this->samarkanNomor($p));
+
         $wallet = $user->wallet;
 
         return response()->json([
             'status' => 'success',
-            'data' => $query->paginate(15),
+            'data' => $data,
             'meta' => [
                 'saldo_koin' => (float) ($wallet?->saldo_koin ?? 0),
                 'koin_ditahan' => (float) ($wallet?->koin_ditahan ?? 0),
@@ -93,11 +97,56 @@ class PermintaanRewardController extends Controller
             ->findOrFail($id);
 
         $permintaan = $this->rewardClaimService->expireIfNeeded($permintaan);
+        $this->samarkanNomor($permintaan);
 
         return response()->json([
             'status' => 'success',
             'data' => $permintaan,
         ]);
+    }
+
+    /**
+     * Struk transaksi reward yang sudah selesai (payout digital = Simulasi).
+     * Nomor e-wallet tampil lengkap di sini.
+     * GET /api/permintaan-reward/{id}/struk
+     */
+    public function struk(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $permintaan = PermintaanReward::with(['reward', 'user'])->findOrFail($id);
+
+        if ($permintaan->user_id !== $user->id && ! $user->isAdmin()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Struk ini bukan milik akun Anda.',
+            ], 403);
+        }
+
+        $permintaan = $this->rewardClaimService->expireIfNeeded($permintaan);
+
+        if ($permintaan->status !== 'selesai') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Struk tersedia setelah transaksi reward selesai.',
+            ], 422);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $this->rewardClaimService->buatStruk($permintaan),
+        ]);
+    }
+
+    /**
+     * Ganti nomor e-wallet dengan versi tersamar sebelum dikirim ke user.
+     * Hanya mengubah atribut di memori, tidak menulis ke database.
+     */
+    private function samarkanNomor(PermintaanReward $permintaan): void
+    {
+        if ($permintaan->nomor_tujuan_digital) {
+            $permintaan->nomor_tujuan_digital = $permintaan->nomor_tujuan_tersamar;
+        }
     }
 
     /**

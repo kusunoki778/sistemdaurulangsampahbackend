@@ -121,6 +121,59 @@ class AdminPermintaanRewardController extends Controller
     }
 
     /**
+     * Admin mulai memproses payout reward digital (simulasi).
+     * pending -> diproses.
+     * POST /api/admin/permintaan-reward/{id}/proses
+     */
+    public function proses(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'catatan_admin' => 'nullable|string|max:500',
+        ]);
+
+        $permintaan = PermintaanReward::with(['user', 'reward'])->findOrFail($id);
+        $permintaan = $this->rewardClaimService->expireIfNeeded($permintaan);
+
+        if ($permintaan->status === 'kedaluwarsa') {
+            return $this->gagal('Kupon sudah kedaluwarsa. Koin sudah dikembalikan otomatis.');
+        }
+
+        $permintaan = $this->rewardClaimService->proses($permintaan, $validated['catatan_admin'] ?? null);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Payout disimulasikan: permintaan sedang diproses.',
+            'data' => $permintaan,
+        ]);
+    }
+
+    /**
+     * Payout digital gagal -> refund koin + kembalikan stok.
+     * POST /api/admin/permintaan-reward/{id}/gagal
+     */
+    public function tandaiGagal(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'catatan_admin' => 'required|string|max:500',
+        ]);
+
+        $permintaan = PermintaanReward::with(['user', 'reward'])->findOrFail($id);
+        $permintaan = $this->rewardClaimService->expireIfNeeded($permintaan);
+
+        if ($permintaan->status === 'kedaluwarsa') {
+            return $this->gagal('Kupon sudah kedaluwarsa. Koin sudah dikembalikan otomatis.');
+        }
+
+        $permintaan = $this->rewardClaimService->tandaiGagal($permintaan, $validated['catatan_admin']);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Payout ditandai gagal. Koin dikembalikan ke wallet member.',
+            'data' => $permintaan,
+        ]);
+    }
+
+    /**
      * Admin menyelesaikan reward digital/legacy tanpa QR.
      * Reward fisik baru (punya hold koin) wajib lewat QR pickup.
      * POST /api/admin/permintaan-reward/{id}/selesai

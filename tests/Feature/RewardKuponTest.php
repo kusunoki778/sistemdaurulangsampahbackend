@@ -294,6 +294,14 @@ class RewardKuponTest extends TestCase
 
         Sanctum::actingAs($admin);
 
+        // Alur payout digital: pending -> diproses -> selesai.
+        $this->postJson("/api/admin/permintaan-reward/{$permintaan->id}/selesai")
+            ->assertStatus(422);
+
+        $this->postJson("/api/admin/permintaan-reward/{$permintaan->id}/proses")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'diproses');
+
         $this->postJson("/api/admin/permintaan-reward/{$permintaan->id}/selesai")
             ->assertOk()
             ->assertJsonPath('data.status', 'selesai');
