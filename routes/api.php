@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminPermintaanRewardController;
+use App\Http\Controllers\Api\AdminTopUpController;
 use App\Http\Controllers\Api\AdminTransaksiSetorController;
 use App\Http\Controllers\Api\ArtikelController;
 use App\Http\Controllers\Api\AuthController;
@@ -13,6 +14,8 @@ use App\Http\Controllers\Api\PermintaanRewardController;
 use App\Http\Controllers\Api\PesanKontakController;
 use App\Http\Controllers\Api\QuizController;
 use App\Http\Controllers\Api\RewardController;
+use App\Http\Controllers\Api\TopUpController;
+use App\Http\Controllers\Api\TopUpWebhookController;
 use App\Http\Controllers\Api\TransaksiSetorController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\DB;
@@ -75,7 +78,18 @@ Route::get('/artikels/{slug}', [ArtikelController::class, 'show']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/wallet', [WalletController::class, 'show']);
     Route::get('/transaksi-koin', [WalletController::class, 'transaksiKoin']);
+
+    // Top Up Koin via Midtrans Snap
+    Route::get('/top-up', [TopUpController::class, 'index']);
+    Route::post('/top-up', [TopUpController::class, 'store']);
+    Route::get('/top-up/{id}', [TopUpController::class, 'show']);
+    Route::get('/top-up/{id}/struk', [TopUpController::class, 'struk']);
 });
+
+// Webhook notifikasi pembayaran Midtrans (publik, server-to-server).
+// Keamanan bergantung pada verifikasi signature SHA-512.
+Route::post('/top-up/notification', [TopUpWebhookController::class, 'notification'])
+    ->middleware('throttle:60,1');
 
 // 4. SETOR SAMPAH OFFLINE (Direct Drop-Off)
 // Admin yang menginput berat di drop point; user hanya memindai QR dan
@@ -184,6 +198,11 @@ Route::prefix('admin')
         Route::post('/permintaan-reward/{id}/selesai', [AdminPermintaanRewardController::class, 'selesai']);
         Route::post('/permintaan-reward/{id}/gagal', [AdminPermintaanRewardController::class, 'tandaiGagal']);
         Route::post('/permintaan-reward/{id}/batalkan', [AdminPermintaanRewardController::class, 'batalkan']);
+
+        // Top Up Koin (kurs & minimum + riwayat semua member)
+        Route::get('/top-up/pengaturan', [AdminTopUpController::class, 'pengaturan']);
+        Route::put('/top-up/pengaturan', [AdminTopUpController::class, 'simpanPengaturan']);
+        Route::get('/top-up', [AdminTopUpController::class, 'index']);
 
         // Pesan Kontak
         Route::get('/pesan-kontak', [PesanKontakController::class, 'adminIndex']);

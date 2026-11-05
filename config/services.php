@@ -44,4 +44,12 @@ return [
         'folder_artikel' => env('CLOUDINARY_FOLDER_ARTIKEL', 'livora/artikels'),
     ],
 
+    'midtrans' => [
+        'server_key' => env('MIDTRANS_SERVER_KEY'),
+        'client_key' => env('MIDTRANS_CLIENT_KEY'),
+        'is_sandbox' => filter_var(env('MIDTRANS_IS_SANDBOX', true), FILTER_VALIDATE_BOOL),
+        // Kunci khusus verifikasi signature webhook; kosong = fallback ke server key.
+        'signature_secret' => env('MIDTRANS_SIGNATURE_SECRET'),
+    ],
+
 ];
