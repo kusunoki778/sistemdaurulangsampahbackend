@@ -5,10 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\TransaksiKoin;
 use App\Models\Wallet;
+use App\Services\RewardClaimService;
 use Illuminate\Http\Request;
 
 class WalletController extends Controller
 {
+    public function __construct(
+        private readonly RewardClaimService $rewardClaimService,
+    ) {}
+
     /**
      * Lihat saldo & total dampak lingkungan user
      * GET /api/wallet
@@ -17,12 +22,16 @@ class WalletController extends Controller
     {
         $user = $request->user();
 
+        // Evaluasi kupon kedaluwarsa agar saldo tersedia akurat.
+        $this->rewardClaimService->expireDueForUser($user->id);
+
         $wallet = $user->wallet;
 
         if (! $wallet) {
             $wallet = Wallet::create([
                 'user_id' => $user->id,
                 'saldo_koin' => 0,
+                'koin_ditahan' => 0,
                 'total_koin_diperoleh' => 0,
                 'total_sampah_kg' => 0,
             ]);
@@ -32,6 +41,8 @@ class WalletController extends Controller
             'status' => 'success',
             'data' => [
                 'saldo_koin' => (float) $wallet->saldo_koin,
+                'koin_ditahan' => (float) $wallet->koin_ditahan,
+                'saldo_tersedia' => (float) $wallet->saldo_tersedia,
                 'total_koin_diperoleh' => (float) $wallet->total_koin_diperoleh,
                 'total_sampah_kg' => (float) $wallet->total_sampah_kg,
                 'status_member' => $user->status_member ?? 'Bronze',

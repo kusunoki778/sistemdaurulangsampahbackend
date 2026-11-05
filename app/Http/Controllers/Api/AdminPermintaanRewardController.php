@@ -3,22 +3,27 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Pengaturan;
 use App\Models\PermintaanReward;
-use App\Models\Reward;
-use App\Models\TransaksiKoin;
-use App\Models\User;
-use App\Models\Wallet;
+use App\Services\QrSessionService;
+use App\Services\RewardClaimService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class AdminPermintaanRewardController extends Controller
 {
+    public function __construct(
+        private readonly RewardClaimService $rewardClaimService,
+        private readonly QrSessionService $qrSessionService,
+    ) {}
+
     /**
-     * Admin lihat daftar pengajuan reward
+     * Admin lihat daftar pengajuan reward (lazy expiry dijalankan lebih dulu).
      * GET /api/admin/permintaan-reward
      */
     public function index(Request $request)
     {
+        $this->rewardClaimService->expireDue();
+
         $query = PermintaanReward::with(['user', 'reward']);
 
         if ($request->filled('status')) {
@@ -29,108 +34,196 @@ class AdminPermintaanRewardController extends Controller
             $query->where('user_id', $request->user_id);
         }
 
-        $data = $query->orderBy('id', 'desc')->paginate(20);
+        if ($request->filled('tipe')) {
+            $query->whereHas('reward', fn ($q) => $q->where('tipe', $request->tipe));
+        }
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('kode_klaim', 'like', '%'.$search.'%')
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('name', 'like', '%'.$search.'%')
+                            ->orWhere('username', 'like', '%'.$search.'%')
+                            ->orWhere('email', 'like', '%'.$search.'%');
+                    });
+            });
+        }
 
         return response()->json([
             'status' => 'success',
-            'data' => $data,
+            'data' => $query->orderBy('id', 'desc')->paginate(20),
         ]);
     }
 
     /**
-     * Admin konfirmasi penyerahan/payout reward
+     * Admin mencari kupon berdasarkan kode (mis. LV-ABCD-2345).
+     * GET /api/admin/permintaan-reward/kupon/{kode}
+     */
+    public function cariKupon($kode)
+    {
+        $kode = strtoupper(trim((string) $kode));
+
+        $permintaan = PermintaanReward::with(['user', 'reward'])
+            ->where('kode_klaim', $kode)
+            ->first();
+
+        if (! $permintaan) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Kupon dengan kode '.$kode.' tidak ditemukan.',
+            ], 404);
+        }
+
+        $permintaan = $this->rewardClaimService->expireIfNeeded($permintaan);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $permintaan,
+        ]);
+    }
+
+    /**
+     * Admin memvalidasi kupon lalu menampilkan QR pickup untuk dipindai user.
+     * POST /api/admin/permintaan-reward/{id}/qr
+     */
+    public function terbitkanQr($id)
+    {
+        $permintaan = PermintaanReward::with(['user', 'reward'])->findOrFail($id);
+        $permintaan = $this->rewardClaimService->expireIfNeeded($permintaan);
+
+        if ($permintaan->status === 'kedaluwarsa') {
+            return $this->gagal('Kupon sudah kedaluwarsa. Koin sudah dikembalikan otomatis.');
+        }
+
+        if (! in_array($permintaan->status, ['pending', 'siap_diambil'], true)) {
+            return $this->gagal('Kupon ini tidak bisa diproses (status: '.$permintaan->status.').');
+        }
+
+        if ($permintaan->reward?->tipe !== 'barang') {
+            return $this->gagal('QR pickup hanya untuk reward fisik (barang).');
+        }
+
+        if ($permintaan->status === 'pending') {
+            $permintaan->update(['status' => 'siap_diambil']);
+        }
+
+        $qr = $this->qrSessionService->issueReward($permintaan);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'QR pickup diterbitkan. Minta user memindai QR ini.',
+            'data' => [
+                'permintaan' => $permintaan->fresh(['user', 'reward']),
+                'qr' => $qr,
+            ],
+        ]);
+    }
+
+    /**
+     * Admin menyelesaikan reward digital/legacy tanpa QR.
+     * Reward fisik baru (punya hold koin) wajib lewat QR pickup.
      * POST /api/admin/permintaan-reward/{id}/selesai
      */
     public function selesai(Request $request, $id)
     {
-        $request->validate([
-            'catatan_admin' => 'nullable|string',
+        $validated = $request->validate([
+            'catatan_admin' => 'nullable|string|max:500',
         ]);
 
-        return DB::transaction(function () use ($request, $id) {
-            $permintaan = PermintaanReward::with(['user', 'reward'])->findOrFail($id);
+        $permintaan = PermintaanReward::with(['user', 'reward'])->findOrFail($id);
+        $permintaan = $this->rewardClaimService->expireIfNeeded($permintaan);
 
-            if ($permintaan->status !== 'pending' && $permintaan->status !== 'diproses') {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Permintaan ini sudah diproses sebelumnya (status: '.$permintaan->status.')',
-                ], 400);
-            }
+        if ($permintaan->status === 'kedaluwarsa') {
+            return $this->gagal('Kupon sudah kedaluwarsa. Koin sudah dikembalikan otomatis.');
+        }
 
-            $permintaan->update([
-                'status' => 'selesai',
-                'catatan_admin' => $request->catatan_admin ?? 'Reward telah diproses dan diserahkan.',
-            ]);
+        if ((float) $permintaan->koin_ditahan > 0) {
+            return $this->gagal('Reward fisik harus diselesaikan lewat QR pickup yang dipindai user.');
+        }
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Permintaan reward berhasil diselesaikan!',
-                'data' => $permintaan->fresh(['user', 'reward']),
-            ]);
-        });
+        $permintaan = $this->rewardClaimService->selesaikan($permintaan, $validated['catatan_admin'] ?? null);
+
+        $this->qrSessionService->revokeRewardFor($permintaan);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Permintaan reward berhasil diselesaikan.',
+            'data' => $permintaan,
+        ]);
     }
 
     /**
-     * Admin tolak klaim reward -> refund koin otomatis
-     * POST /api/admin/permintaan-reward/{id}/reject
+     * Admin membatalkan kupon. Hold koin dilepas (atau refund untuk data
+     * legacy/digital) dan stok dikembalikan.
+     * POST /api/admin/permintaan-reward/{id}/batalkan
      */
-    public function reject(Request $request, $id)
+    public function batalkan(Request $request, $id)
     {
-        $request->validate([
-            'catatan_admin' => 'required|string',
+        $validated = $request->validate([
+            'catatan_admin' => 'required|string|max:500',
         ]);
 
-        return DB::transaction(function () use ($request, $id) {
-            $permintaan = PermintaanReward::with(['user', 'reward'])->findOrFail($id);
+        $permintaan = PermintaanReward::with(['user', 'reward'])->findOrFail($id);
+        $permintaan = $this->rewardClaimService->expireIfNeeded($permintaan);
 
-            if ($permintaan->status !== 'pending' && $permintaan->status !== 'diproses') {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Permintaan ini sudah diproses sebelumnya (status: '.$permintaan->status.')',
-                ], 400);
-            }
+        if ($permintaan->status === 'kedaluwarsa') {
+            return $this->gagal('Kupon sudah kedaluwarsa. Koin sudah dikembalikan otomatis.');
+        }
 
-            $user = $permintaan->user;
-            $reward = $permintaan->reward;
+        $permintaan = $this->rewardClaimService->batalkan($permintaan, $validated['catatan_admin']);
 
-            // Refund koin ke wallet user
-            $wallet = $user->wallet;
-            if (! $wallet) {
-                $wallet = Wallet::create([
-                    'user_id' => $user->id,
-                    'saldo_koin' => 0,
-                    'total_koin_diperoleh' => 0,
-                    'total_sampah_kg' => 0,
-                ]);
-            }
-            $wallet->increment('saldo_koin', $permintaan->koin_ditukar);
+        $this->qrSessionService->revokeRewardFor($permintaan);
 
-            // Kembalikan stok reward
-            if ($reward) {
-                $reward->increment('stok', 1);
-            }
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Kupon dibatalkan. Koin dan stok sudah dikembalikan.',
+            'data' => $permintaan,
+        ]);
+    }
 
-            // Update status permintaan
-            $permintaan->update([
-                'status' => 'ditolak',
-                'catatan_admin' => $request->catatan_admin,
-            ]);
+    /**
+     * Pengaturan masa berlaku kupon (hari).
+     * GET /api/admin/permintaan-reward/pengaturan
+     */
+    public function pengaturan()
+    {
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'masa_berlaku_hari' => $this->rewardClaimService->masaBerlakuHari(),
+            ],
+        ]);
+    }
 
-            // Catat transaksi refund
-            TransaksiKoin::create([
-                'user_id' => $user->id,
-                'tipe' => 'masuk',
-                'jumlah_koin' => $permintaan->koin_ditukar,
-                'sumber' => 'refund',
-                'referensi_id' => $permintaan->id,
-                'keterangan' => 'REFUND: Klaim reward "'.($reward->nama_reward ?? 'Unknown').'" ditolak.',
-            ]);
+    /**
+     * PUT /api/admin/permintaan-reward/pengaturan
+     */
+    public function simpanPengaturan(Request $request)
+    {
+        $validated = $request->validate([
+            'masa_berlaku_hari' => 'required|integer|min:1|max:30',
+        ]);
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Permintaan reward ditolak. Koin telah dikembalikan ke wallet user.',
-                'data' => $permintaan->fresh(['user', 'reward']),
-            ]);
-        });
+        Pengaturan::simpan(
+            RewardClaimService::KUNCI_MASA_BERLAKU,
+            $validated['masa_berlaku_hari'],
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Masa berlaku kupon diperbarui menjadi '.$validated['masa_berlaku_hari'].' hari.',
+            'data' => [
+                'masa_berlaku_hari' => $this->rewardClaimService->masaBerlakuHari(),
+            ],
+        ]);
+    }
+
+    private function gagal(string $pesan)
+    {
+        return response()->json([
+            'status' => 'error',
+            'message' => $pesan,
+        ], 422);
     }
 }

@@ -93,10 +93,16 @@ Route::get('/rewards', [RewardController::class, 'index']);
 Route::get('/rewards/{id}', [RewardController::class, 'show']);
 
 Route::middleware('auth:sanctum')->group(function () {
-    // User klaim reward
+    // User klaim reward + kupon pickup
     Route::post('/permintaan-reward', [PermintaanRewardController::class, 'store']);
     Route::get('/permintaan-reward', [PermintaanRewardController::class, 'index']);
     Route::get('/permintaan-reward/{id}', [PermintaanRewardController::class, 'show']);
+
+    // QR pickup reward (dipindai user di titik pengambilan)
+    Route::post('/permintaan-reward/scan', [PermintaanRewardController::class, 'scan'])
+        ->middleware('throttle:30,1');
+    Route::post('/permintaan-reward/konfirmasi', [PermintaanRewardController::class, 'konfirmasi'])
+        ->middleware('throttle:30,1');
 });
 
 // 6. GAMIFIKASI (user login)
@@ -165,10 +171,14 @@ Route::prefix('admin')
         Route::post('/transaksi-setor/{id}/selesaikan', [AdminTransaksiSetorController::class, 'selesaikan']);
         Route::post('/transaksi-setor/{id}/batalkan', [AdminTransaksiSetorController::class, 'batalkan']);
 
-        // Verifikasi Permintaan Reward
+        // Verifikasi Permintaan Reward (kupon + QR pickup)
         Route::get('/permintaan-reward', [AdminPermintaanRewardController::class, 'index']);
+        Route::get('/permintaan-reward/pengaturan', [AdminPermintaanRewardController::class, 'pengaturan']);
+        Route::put('/permintaan-reward/pengaturan', [AdminPermintaanRewardController::class, 'simpanPengaturan']);
+        Route::get('/permintaan-reward/kupon/{kode}', [AdminPermintaanRewardController::class, 'cariKupon']);
+        Route::post('/permintaan-reward/{id}/qr', [AdminPermintaanRewardController::class, 'terbitkanQr']);
         Route::post('/permintaan-reward/{id}/selesai', [AdminPermintaanRewardController::class, 'selesai']);
-        Route::post('/permintaan-reward/{id}/reject', [AdminPermintaanRewardController::class, 'reject']);
+        Route::post('/permintaan-reward/{id}/batalkan', [AdminPermintaanRewardController::class, 'batalkan']);
 
         // Pesan Kontak
         Route::get('/pesan-kontak', [PesanKontakController::class, 'adminIndex']);

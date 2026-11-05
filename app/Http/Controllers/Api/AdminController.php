@@ -14,16 +14,23 @@ use App\Models\TransaksiSetor;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\CloudinaryService;
+use App\Services\RewardClaimService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class AdminController extends Controller
 {
+    public function __construct(
+        private readonly RewardClaimService $rewardClaimService,
+    ) {}
+
     /**
      * Ringkasan Statistik Dashboard Admin
      */
     public function stats()
     {
+        $this->rewardClaimService->expireDue();
+
         $totalUsers = User::where('role', 'user')->count();
         $totalAdmins = User::where('role', 'admin')->count();
 
@@ -33,8 +40,8 @@ class AdminController extends Controller
             SUM(total_sampah_kg) as total_sampah_kg
         ')->first();
 
-        $pendingSetor = TransaksiSetor::where('status', 'pending')->count();
-        $pendingReward = PermintaanReward::where('status', 'pending')->count();
+        $pendingSetor = TransaksiSetor::whereIn('status', ['pending', 'menunggu_konfirmasi'])->count();
+        $pendingReward = PermintaanReward::whereIn('status', ['pending', 'diproses', 'siap_diambil'])->count();
         $pesanBelumDibaca = PesanKontak::where('status', 'unread')->count();
 
         // Total minyak jelantah (liter) dari setor yang disetujui
