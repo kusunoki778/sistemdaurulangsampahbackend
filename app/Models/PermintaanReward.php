@@ -28,6 +28,12 @@ class PermintaanReward extends Model
         'gagal_at',
         'nomor_tujuan_digital',
         'catatan_admin',
+        // Xendit Payouts v3 (disbursement koin -> saldo e-wallet).
+        'xendit_payout_id',
+        'xendit_reference_id',
+        'xendit_channel_code',
+        'xendit_status',
+        'xendit_payload',
     ];
 
     protected $casts = [
@@ -38,6 +44,7 @@ class PermintaanReward extends Model
         'diproses_at' => 'datetime',
         'selesai_at' => 'datetime',
         'gagal_at' => 'datetime',
+        'xendit_payload' => 'array',
     ];
 
     /**

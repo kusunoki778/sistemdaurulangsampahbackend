@@ -195,12 +195,22 @@ class KoinDesimalTest extends TestCase
 
         Sanctum::actingAs($admin);
 
-        $this->deleteJson("/api/admin/rewards/{$reward->id}")->assertOk();
+        // Reward dengan riwayat klaim ditolak dihapus (pelindung riwayat).
+        $this->deleteJson("/api/admin/rewards/{$reward->id}")->assertStatus(422);
 
-        $this->assertSoftDeleted('rewards', ['id' => $reward->id]);
+        $this->assertDatabaseHas('rewards', ['id' => $reward->id, 'deleted_at' => null]);
         $this->assertDatabaseHas('permintaan_reward', ['id' => $permintaan->id]);
 
-        // Katalog publik tidak menampilkan reward yang sudah dihapus.
-        $this->getJson('/api/rewards')->assertOk()->assertJsonCount(0, 'data');
+        // Reward tanpa riwayat klaim boleh dihapus (soft delete).
+        $rewardBaru = Reward::create([
+            'nama_reward' => 'Pot Livora',
+            'tipe' => 'barang',
+            'koin_dibutuhkan' => 300,
+            'stok' => 2,
+            'status_aktif' => true,
+        ]);
+
+        $this->deleteJson("/api/admin/rewards/{$rewardBaru->id}")->assertOk();
+        $this->assertSoftDeleted('rewards', ['id' => $rewardBaru->id]);
     }
 }

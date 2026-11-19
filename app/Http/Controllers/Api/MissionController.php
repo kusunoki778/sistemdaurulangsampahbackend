@@ -27,12 +27,65 @@ class MissionController extends Controller
             ->get();
 
         $data = $missions->map(function ($mission) use ($user) {
-            // Auto-update progress untuk misi setor sampah
-            // (dihitung dari transaksi setor yang sudah approved)
-            if (str_contains(strtolower((string) $mission->judul), 'setor')) {
-                $totalSetor = TransaksiSetor::where('user_id', $user->id)
-                    ->where('status', 'approved')
-                    ->count();
+            $judul = strtolower((string) $mission->judul);
+
+            // Misi login harian: baris progress dipakai ulang setiap hari.
+            //
+            // Sumber kebenaran "sudah klaim hari ini" adalah kolom
+            // terakhir_klaim_tanggal, bukan status. Alasannya status hanya
+            // bisa bernilai ongoing/completed/claimed, jadi kalau memakai
+            // status misi harian akan terkunci 'claimed' selamanya dan tidak
+            // bisa diklaim lagi besok.
+            //
+            // Deteksi lewat judul, BUKAN tipe: tipe `daily` juga dipakai misi
+            // lain (mis. setor sampah harian) yang progresnya bukan daily_login.
+            if (str_contains($judul, 'login')) {
+                $progress = MissionProgress::firstOrNew([
+                    'user_id' => $user->id,
+                    'mission_id' => $mission->id,
+                ]);
+
+                $tanggalKlaim = $progress->terakhir_klaim_tanggal;
+                $sudahKlaimHariIni = $tanggalKlaim !== null
+                    && $tanggalKlaim->isSameDay(today());
+
+                // Login hari ini dianggap selesai begitu user membuka daftar
+                // misi, karena syarat misi ini memang "login". Hadiah tetap
+                // harus diklaim manual lewat tombol Klaim.
+                $progress->progress = $mission->target_jumlah;
+                $progress->status = $sudahKlaimHariIni ? 'claimed' : 'completed';
+                $progress->save();
+
+                return [
+                    'id' => $mission->id,
+                    'judul' => $mission->judul,
+                    'deskripsi' => $mission->deskripsi,
+                    'tipe' => $mission->tipe,
+                    'target_jumlah' => $mission->target_jumlah,
+                    'koin_reward' => (float) $mission->koin_reward,
+                    'progress' => $mission->target_jumlah,
+                    'status' => $progress->status,
+                    'is_completed' => true,
+                    'can_claim' => $sudahKlaimHariIni === false,
+                ];
+            }
+
+            // Auto-update progress untuk misi setor sampah (dihitung dari
+            // transaksi setor yang sudah approved) — dipatok sesuai tipe:
+            // daily = hari ini, weekly = minggu ini.
+            if (str_contains($judul, 'setor')) {
+                $query = TransaksiSetor::where('user_id', $user->id)
+                    ->where('status', 'approved');
+
+                if ($mission->tipe === 'daily') {
+                    $query->whereDate('created_at', today());
+                } elseif ($mission->tipe === 'weekly') {
+                    $query->whereBetween('created_at', [
+                        now()->startOfWeek(),
+                        now()->endOfWeek(),
+                    ]);
+                }
+                $totalSetor = $query->count();
 
                 $progress = MissionProgress::firstOrNew([
                     'user_id' => $user->id,
@@ -93,35 +146,60 @@ class MissionController extends Controller
         $mission = Mission::where('status_aktif', true)->findOrFail($id);
 
         return DB::transaction(function () use ($user, $mission) {
+            $misiLogin = str_contains(strtolower((string) $mission->judul), 'login');
+
             // Kunci baris progress & wallet agar klaim ganda tidak lolos.
             $progress = MissionProgress::where('user_id', $user->id)
                 ->where('mission_id', $mission->id)
                 ->lockForUpdate()
                 ->first();
 
-            if (! $progress) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Misi belum dimulai',
-                ], 400);
-            }
+            if ($misiLogin) {
+                // Misi login tidak punya syarat lain selain membuka aplikasi,
+                // jadi baris progress dibuat bila belum ada.
+                if (! $progress) {
+                    $progress = MissionProgress::create([
+                        'user_id' => $user->id,
+                        'mission_id' => $mission->id,
+                        'progress' => $mission->target_jumlah,
+                        'status' => 'completed',
+                    ]);
+                }
 
-            if ($progress->progress < $mission->target_jumlah) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Misi belum selesai',
-                ], 400);
-            }
+                $tanggalKlaim = $progress->terakhir_klaim_tanggal;
 
-            if ($progress->status === 'claimed') {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Hadiah misi sudah diklaim',
-                ], 400);
+                if ($tanggalKlaim !== null && $tanggalKlaim->isSameDay(today())) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Hadiah misi sudah diklaim hari ini. Kembali besok untuk klaim lagi.',
+                    ], 400);
+                }
+            } else {
+                if (! $progress) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Misi belum dimulai',
+                    ], 400);
+                }
+
+                if ($progress->progress < $mission->target_jumlah) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Misi belum selesai',
+                    ], 400);
+                }
+
+                if ($progress->status === 'claimed') {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Hadiah misi sudah diklaim',
+                    ], 400);
+                }
             }
 
             $progress->update([
                 'status' => 'claimed',
+                'terakhir_klaim_tanggal' => today(),
             ]);
 
             // Tambah koin ke wallet

@@ -50,7 +50,9 @@ return [
     |
     */
 
-    'expiration' => null,
+    // Token akses tidak berlaku selamanya. Default 7 hari (10.080 menit);
+    // sesuaikan lewat SANCTUM_EXPIRATION_MINUTES bila perlu.
+    'expiration' => (int) env('SANCTUM_EXPIRATION_MINUTES', 10080),
 
     /*
     |--------------------------------------------------------------------------

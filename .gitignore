@@ -1,4 +1,4 @@
-*.log
+﻿*.log
 .DS_Store
 .env
 .env.backup
@@ -18,6 +18,7 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+/public/uploads
 /storage/*.key
 /storage/pail
 /vendor
@@ -25,3 +26,21 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Signing Android (RAHASIA - jangan di-commit)
+key.properties
+*.jks
+*.keystore
+
+# Kredensial FCM (rahasia - jangan commit)
+storage/app/firebase/
+desain_preview/
+
+# Dump database (berisi data pengguna - jangan di-commit)
+/*.sql
+
+# Berkas APK hasil build tidak di-commit (ratusan MB, dibagikan terpisah)
+*.apk
+
+# Dump database berisi data pengguna, jangan di-commit
+database/dumps/*.sql

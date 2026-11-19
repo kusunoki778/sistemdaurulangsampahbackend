@@ -1,4 +1,4 @@
-# Livora API Backend — Laravel 13 di PHP 8.3 (untuk Render Web Service, runtime Docker)
+# Livora API Backend - Laravel 13 di PHP 8.3 (untuk Render Web Service, runtime Docker)
 FROM php:8.3-cli-alpine
 
 # Ekstensi PHP yang dibutuhkan Laravel + MySQL + unzip untuk composer

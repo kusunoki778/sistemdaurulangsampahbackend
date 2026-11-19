@@ -121,7 +121,7 @@ class AdminPermintaanRewardController extends Controller
     }
 
     /**
-     * Admin mulai memproses payout reward digital (simulasi).
+     * Admin mulai memproses payout reward digital.
      * pending -> diproses.
      * POST /api/admin/permintaan-reward/{id}/proses
      */
@@ -142,7 +142,7 @@ class AdminPermintaanRewardController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Payout disimulasikan: permintaan sedang diproses.',
+            'message' => 'Pencairan sedang diproses.',
             'data' => $permintaan,
         ]);
     }
@@ -191,7 +191,10 @@ class AdminPermintaanRewardController extends Controller
             return $this->gagal('Kupon sudah kedaluwarsa. Koin sudah dikembalikan otomatis.');
         }
 
-        if ((float) $permintaan->koin_ditahan > 0) {
+        // Hanya reward FISIK yang memegang koin dan wajib lewat QR pickup.
+        // Payout saldo_digital juga memegang koin (hold) sampai admin
+        // menyelesaikan pencairan, jadi tidak boleh diblokir di sini.
+        if ($permintaan->reward?->tipe === 'barang' && (float) $permintaan->koin_ditahan > 0) {
             return $this->gagal('Reward fisik harus diselesaikan lewat QR pickup yang dipindai user.');
         }
 

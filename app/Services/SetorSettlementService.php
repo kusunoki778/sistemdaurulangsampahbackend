@@ -10,6 +10,10 @@ use Illuminate\Validation\ValidationException;
 
 class SetorSettlementService
 {
+    public function __construct(
+        private readonly FcmService $fcm,
+    ) {}
+
     /**
      * Cairkan koin untuk transaksi setor.
      *
@@ -20,7 +24,8 @@ class SetorSettlementService
      */
     public function settle(TransaksiSetor $transaksi, string $method): TransaksiSetor
     {
-        return DB::transaction(function () use ($transaksi, $method) {
+        $terkunci = DB::transaction(function () use ($transaksi, $method, &$terbaru) {
+            $terbaru = false;
             $locked = TransaksiSetor::with(['details.jenisSampah'])
                 ->lockForUpdate()
                 ->findOrFail($transaksi->id);
@@ -44,14 +49,21 @@ class SetorSettlementService
 
             $totalKoin = 0.0;
             $totalBeratKg = 0.0;
+            $totalLiter = 0.0;
 
             foreach ($locked->details as $detail) {
                 $totalKoin += (float) $detail->koin_subtotal;
                 $totalBeratKg += $this->beratKg($detail);
+                // Total liter mentah (tanpa konversi), biar member melihat
+                // berapa literaliter yang disetor — tampil berdampingan kg.
+                if ($detail->jenisSampah?->satuan === 'liter') {
+                    $totalLiter += (float) $detail->jumlah;
+                }
             }
 
             $totalKoin = round($totalKoin, 2);
             $totalBeratKg = round($totalBeratKg, 2);
+            $totalLiter = round($totalLiter, 2);
 
             $wallet = Wallet::where('user_id', $locked->user_id)->lockForUpdate()->first();
 
@@ -61,12 +73,14 @@ class SetorSettlementService
                     'saldo_koin' => 0,
                     'total_koin_diperoleh' => 0,
                     'total_sampah_kg' => 0,
+                    'total_sampah_liter' => 0,
                 ]);
             }
 
             $wallet->increment('saldo_koin', $totalKoin);
             $wallet->increment('total_koin_diperoleh', $totalKoin);
             $wallet->increment('total_sampah_kg', $totalBeratKg);
+            $wallet->increment('total_sampah_liter', $totalLiter);
 
             $locked->update([
                 'status' => 'approved',
@@ -74,6 +88,7 @@ class SetorSettlementService
                 'settled_at' => now(),
                 'settlement_method' => $method,
             ]);
+            $terbaru = true;
 
             TransaksiKoin::create([
                 'user_id' => $locked->user_id,
@@ -86,6 +101,20 @@ class SetorSettlementService
 
             return $locked;
         });
+
+        // Koin sudah sah → notifikasi sistem HP via FCM. Dikirim di luar
+        // transaksi DB, dan kegagalan kirim tidak boleh merusak settlement.
+        // (panggilan-ulang idempoten tidak memicu notifikasi dobel)
+        if ($terbaru) {
+            $this->fcm->kirimKeUser(
+                $terkunci->user_id,
+                'Koin bertambah',
+                sprintf('Setoran %s disetujui. +%.0f koin sudah masuk ke dompet Livora kamu.', $terkunci->kode_transaksi, (float) $terkunci->total_koin),
+                ['tipe' => 'setor_disetujui', 'transaksi_id' => $terkunci->id],
+            );
+        }
+
+        return $terkunci;
     }
 
     /**

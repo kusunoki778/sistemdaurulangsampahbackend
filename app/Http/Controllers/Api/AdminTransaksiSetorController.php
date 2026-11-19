@@ -7,6 +7,7 @@ use App\Models\JenisSampah;
 use App\Models\TransaksiSetor;
 use App\Models\TransaksiSetorDetail;
 use App\Models\User;
+use App\Services\FcmService;
 use App\Services\QrSessionService;
 use App\Services\SetorSettlementService;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class AdminTransaksiSetorController extends Controller
     public function __construct(
         private readonly QrSessionService $qrSessions,
         private readonly SetorSettlementService $settlement,
+        private readonly FcmService $fcm,
     ) {}
 
     /**
@@ -118,6 +120,16 @@ class AdminTransaksiSetorController extends Controller
         });
 
         $qr = $this->qrSessions->issue($transaksi);
+
+        // Beri tahu member bahwa timbangan sudah dicatat dan tinggal
+        // konfirmasi nominal lewat QR. Notifikasi ini tidak boleh menggagalkan
+        // transaksi kalau FCM sedang tidak tersedia.
+        $this->fcm->kirimKeUser(
+            $transaksi->user_id,
+            'Setoran diterima',
+            sprintf('Transaksi %s sudah dicatat. Konfirmasi nominal lewat QR untuk memasukkan koin.', $transaksi->kode_transaksi),
+            ['tipe' => 'setor_dibuat', 'transaksi_id' => $transaksi->id],
+        );
 
         return response()->json([
             'status' => 'success',

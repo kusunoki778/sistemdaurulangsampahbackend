@@ -16,27 +16,49 @@ class QuizController extends Controller
     /**
      * Ambil kuis harian aktif
      * GET /api/quizzes/daily
+     *
+     * Respons memuat "quiz" (kuis terbaru, tetap dipakai build aplikasi lama)
+     * dan "daftar" (seluruh kuis aktif) supaya member bisa memilih kuis mana
+     * yang ingin dikerjakan, bukan hanya kuis yang paling baru dibuat.
      */
     public function daily(Request $request)
     {
-        $quiz = Quiz::where('status_aktif', true)
+        $semua = Quiz::where('status_aktif', true)
             ->with('questions')
             ->latest()
-            ->first();
+            ->get();
 
-        if (! $quiz) {
+        if ($semua->isEmpty()) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Tidak ada kuis harian tersedia saat ini',
             ], 404);
         }
 
-        // Cek apakah user sudah mencoba hari ini
         $user = $request->user();
-        $todayAttempt = QuizAttempt::where('user_id', $user->id)
-            ->where('quiz_id', $quiz->id)
+
+        // Satu query untuk semua percobaan hari ini, bukan satu query per kuis.
+        $percobaanHariIni = QuizAttempt::where('user_id', $user->id)
             ->whereDate('created_at', today())
-            ->first();
+            ->get()
+            ->keyBy('quiz_id');
+
+        $daftar = $semua->map(function (Quiz $quiz) use ($percobaanHariIni) {
+            $attempt = $percobaanHariIni->get($quiz->id);
+
+            return [
+                'id' => $quiz->id,
+                'judul' => $quiz->judul,
+                'deskripsi' => $quiz->deskripsi,
+                'koin_reward' => (float) $quiz->koin_reward,
+                'jumlah_soal' => $quiz->questions->count(),
+                'already_attempted' => $attempt !== null,
+                'skor' => $attempt?->skor,
+            ];
+        })->values();
+
+        $quiz = $semua->first();
+        $todayAttempt = $percobaanHariIni->get($quiz->id);
 
         return response()->json([
             'status' => 'success',
@@ -44,7 +66,38 @@ class QuizController extends Controller
                 'quiz' => $quiz,
                 'already_attempted' => $todayAttempt !== null,
                 'attempt' => $todayAttempt,
+                'daftar' => $daftar,
             ],
+        ]);
+    }
+
+    /**
+     * Soal satu kuis, dipakai aplikasi member.
+     * GET /api/quizzes/{id}/soal
+     *
+     * Jawaban benar tidak pernah dikirim ke aplikasi; penilaian tetap
+     * dilakukan di server lewat endpoint submit.
+     */
+    public function soalKuis(Request $request, $id)
+    {
+        $quiz = Quiz::where('status_aktif', true)->findOrFail($id);
+
+        $soal = $quiz->questions()
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($q) => [
+                'id' => $q->id,
+                'pertanyaan' => $q->pertanyaan,
+                'opsi_a' => $q->opsi_a,
+                'opsi_b' => $q->opsi_b,
+                'opsi_c' => $q->opsi_c,
+                'opsi_d' => $q->opsi_d,
+            ])
+            ->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $soal,
         ]);
     }
 

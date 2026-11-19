@@ -19,7 +19,7 @@ class PesanKontakController extends Controller
             'nama' => 'required|string|max:100',
             'email' => 'required|email|max:150',
             'subjek' => 'required|string|max:150',
-            'pesan' => 'required|string',
+            'pesan' => 'required|string|max:5000',
         ]);
 
         if ($validator->fails()) {

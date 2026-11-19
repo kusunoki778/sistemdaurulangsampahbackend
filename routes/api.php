@@ -2,12 +2,13 @@
 
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminPermintaanRewardController;
-use App\Http\Controllers\Api\AdminTopUpController;
 use App\Http\Controllers\Api\AdminTransaksiSetorController;
 use App\Http\Controllers\Api\ArtikelController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CaptchaController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\DailyLoginController;
+use App\Http\Controllers\Api\FcmTokenController;
 use App\Http\Controllers\Api\JenisSampahController;
 use App\Http\Controllers\Api\KategoriSampahController;
 use App\Http\Controllers\Api\MissionController;
@@ -15,10 +16,10 @@ use App\Http\Controllers\Api\PermintaanRewardController;
 use App\Http\Controllers\Api\PesanKontakController;
 use App\Http\Controllers\Api\QuizController;
 use App\Http\Controllers\Api\RewardController;
-use App\Http\Controllers\Api\TopUpController;
-use App\Http\Controllers\Api\TopUpWebhookController;
 use App\Http\Controllers\Api\TransaksiSetorController;
+use App\Http\Controllers\Api\TurnstileController;
 use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\Api\XenditWebhookController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -58,13 +59,25 @@ Route::get('/health', function () {
 // password dan pembuatan akun massal (forgot/reset sudah throttle di bawah).
 Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+// Login Google (Firebase ID token) — throttle 10x/mnt (verifikasi butuh
+// fetch JWKS sekali, sisanya lokal).
+Route::post('/auth/google', [AuthController::class, 'loginGoogle'])->middleware('throttle:10,1');
 Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:10,1');
 Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1');
+// Captcha admin: dibatasi agar pembuatan soal tidak dibanjiri bot.
+Route::get('/auth/captcha', [CaptchaController::class, 'show'])->middleware('throttle:30,1');
+
+// Konfigurasi verifikasi keamanan login admin: memberi tahu halaman login
+// apakah Turnstile aktif dan site key publik mana yang dipakai. Secret key
+// tidak pernah dikirim ke klien.
+Route::get('/auth/verifikasi-keamanan', [TurnstileController::class, 'show'])
+    ->middleware('throttle:60,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::post('/auth/profile', [AuthController::class, 'updateProfile']);
+    Route::post('/auth/avatar', [AuthController::class, 'avatar']);
     Route::post('/auth/change-password', [AuthController::class, 'changePassword']);
 });
 
@@ -81,17 +94,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/wallet', [WalletController::class, 'show']);
     Route::get('/transaksi-koin', [WalletController::class, 'transaksiKoin']);
 
-    // Top Up Koin via Midtrans Snap
-    Route::get('/top-up', [TopUpController::class, 'index']);
-    Route::post('/top-up', [TopUpController::class, 'store']);
-    Route::get('/top-up/{id}', [TopUpController::class, 'show']);
-    Route::get('/top-up/{id}/struk', [TopUpController::class, 'struk']);
+    // Token notifikasi sistem HP (FCM) — daftar saat login, lepas saat logout.
+    Route::post('/fcm-token', [FcmTokenController::class, 'simpan']);
+    Route::delete('/fcm-token', [FcmTokenController::class, 'hapus']);
 });
-
-// Webhook notifikasi pembayaran Midtrans (publik, server-to-server).
-// Keamanan bergantung pada verifikasi signature SHA-512.
-Route::post('/top-up/notification', [TopUpWebhookController::class, 'notification'])
-    ->middleware('throttle:60,1');
 
 // 4. SETOR SAMPAH OFFLINE (Direct Drop-Off)
 // Admin yang menginput berat di drop point; user hanya memindai QR dan
@@ -105,6 +111,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // 6. CHAT (publik, rate-limited)
 Route::post('/chat', [ChatController::class, 'chat'])->middleware('throttle:10,1');
+
+// WEBHOOK Xendit payout (publik, server-to-server; keamanan = x-callback-token).
+Route::post('/xendit/webhook', [XenditWebhookController::class, 'terima'])
+    ->middleware('throttle:120,1');
 // Katalog reward bersifat publik (bisa dilihat tanpa login)
 Route::get('/rewards', [RewardController::class, 'index']);
 Route::get('/rewards/{id}', [RewardController::class, 'show']);
@@ -114,6 +124,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/permintaan-reward', [PermintaanRewardController::class, 'store']);
     Route::get('/permintaan-reward', [PermintaanRewardController::class, 'index']);
     Route::get('/permintaan-reward/{id}', [PermintaanRewardController::class, 'show']);
+    Route::post('/permintaan-reward/konversi-saldo', [PermintaanRewardController::class, 'konversiSaldo']);
+    Route::post('/permintaan-reward/{id}/bayar-sandbox', [PermintaanRewardController::class, 'bayarSandbox']);
+    Route::post('/permintaan-reward/{id}/xendit-payout', [PermintaanRewardController::class, 'xenditPayout'])
+        ->middleware('throttle:30,1');
+    Route::post('/permintaan-reward/{id}/xendit-cek', [PermintaanRewardController::class, 'xenditCekStatus'])
+        ->middleware('throttle:60,1');
 
     // QR pickup reward (dipindai user di titik pengambilan)
     Route::post('/permintaan-reward/scan', [PermintaanRewardController::class, 'scan'])
@@ -127,12 +143,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // 6. GAMIFIKASI (user login)
 Route::middleware('auth:sanctum')->group(function () {
-    // Daily Login
+    // Daily Login dipensiunkan: hadiah login harian sekarang masuk ke Misi
+    // ("Login Harian") supaya admin bisa mengatur nominal dan statusnya dari
+    // CMS. Endpoint lama sengaja dibiarkan tetap ada agar build APK lama yang
+    // belum diperbarui tidak error saat dipakai.
     Route::post('/daily-login', [DailyLoginController::class, 'claim']);
     Route::get('/daily-login/status', [DailyLoginController::class, 'status']);
 
     // Daily Quiz
     Route::get('/quizzes/daily', [QuizController::class, 'daily']);
+    Route::get('/quizzes/{id}/soal', [QuizController::class, 'soalKuis']);
     Route::post('/quizzes/{id}/submit', [QuizController::class, 'submit']);
     Route::get('/quizzes/history', [QuizController::class, 'history']);
 
@@ -142,11 +162,11 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // 7. PESAN KONTAK (publik kirim, admin baca)
-Route::post('/pesan-kontak', [PesanKontakController::class, 'store']);
+Route::post('/pesan-kontak', [PesanKontakController::class, 'store'])->middleware('throttle:5,1');
 
 // 8. ADMIN CMS (auth:sanctum + role admin)
 Route::prefix('admin')
-    ->middleware(['auth:sanctum', 'admin'])
+    ->middleware(['auth:sanctum', 'admin', 'audit.admin'])
     ->group(function () {
         // Dashboard Stats
         Route::get('/stats', [AdminController::class, 'stats']);
@@ -175,8 +195,14 @@ Route::prefix('admin')
         // Master Data: Quizzes
         Route::get('/quizzes', [AdminController::class, 'quizIndex']);
         Route::post('/quizzes', [AdminController::class, 'quizStore']);
+        Route::get('/quizzes/{id}', [AdminController::class, 'quizShow']);
         Route::put('/quizzes/{id}', [AdminController::class, 'quizUpdate']);
         Route::delete('/quizzes/{id}', [AdminController::class, 'quizDestroy']);
+
+        // Master Data: Soal Kuis (bersarang di kuis)
+        Route::post('/quizzes/{quizId}/soal', [AdminController::class, 'soalStore']);
+        Route::put('/quizzes/{quizId}/soal/{id}', [AdminController::class, 'soalUpdate']);
+        Route::delete('/quizzes/{quizId}/soal/{id}', [AdminController::class, 'soalDestroy']);
 
         // Master Data: Missions
         Route::get('/missions', [AdminController::class, 'missionIndex']);
@@ -201,11 +227,6 @@ Route::prefix('admin')
         Route::post('/permintaan-reward/{id}/selesai', [AdminPermintaanRewardController::class, 'selesai']);
         Route::post('/permintaan-reward/{id}/gagal', [AdminPermintaanRewardController::class, 'tandaiGagal']);
         Route::post('/permintaan-reward/{id}/batalkan', [AdminPermintaanRewardController::class, 'batalkan']);
-
-        // Top Up Koin (kurs & minimum + riwayat semua member)
-        Route::get('/top-up/pengaturan', [AdminTopUpController::class, 'pengaturan']);
-        Route::put('/top-up/pengaturan', [AdminTopUpController::class, 'simpanPengaturan']);
-        Route::get('/top-up', [AdminTopUpController::class, 'index']);
 
         // Pesan Kontak
         Route::get('/pesan-kontak', [PesanKontakController::class, 'adminIndex']);

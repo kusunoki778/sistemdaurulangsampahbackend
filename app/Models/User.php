@@ -17,6 +17,7 @@ class User extends Authenticatable
         'name',
         'username',
         'email',
+        'google_id',
         'phone',
         'password',
         'role',
@@ -38,6 +39,7 @@ class User extends Authenticatable
         'sampah_terkumpul_kg',
         'status_member',
         'no_hp',
+        'foto_url',
     ];
 
     protected function casts(): array
@@ -126,6 +128,25 @@ class User extends Authenticatable
     public function getNoHpAttribute(): ?string
     {
         return $this->attributes['phone'] ?? null;
+    }
+
+    /**
+     * URL absolut foto profil: URL Google bila akun Google, atau URL host
+     * saat request untuk foto yang diunggah lokal (path relatif).
+     */
+    public function getFotoUrlAttribute(): string
+    {
+        $avatar = (string) ($this->attributes['avatar'] ?? '');
+
+        if ($avatar === '') {
+            return '';
+        }
+
+        if (str_starts_with($avatar, 'http')) {
+            return $avatar;
+        }
+
+        return asset($avatar);
     }
 
     public function setNoHpAttribute(?string $value): void

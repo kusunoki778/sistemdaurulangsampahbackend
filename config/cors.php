@@ -19,10 +19,27 @@ return [
 
     // Produksi: isi CORS_ALLOWED_ORIGINS dengan domain frontend, dipisah koma.
     // Contoh: https://livora.vercel.app,https://livora-web.vercel.app
-    // Bila tidak diset, fallback terbuka ('*') untuk kompatibilitas lokal.
-    'allowed_origins' => array_values(
-        array_filter(array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS', '*'))))
-    ),
+    // Lokal/testing: fallback terbuka. Produksi tanpa env: pakai FRONTEND_URL;
+    // bila keduanya kosong, origin asing ditolak (fail-closed).
+    'allowed_origins' => (function () {
+        $daftar = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('CORS_ALLOWED_ORIGINS', '')),
+        )));
+
+        if ($daftar !== []) {
+            return $daftar;
+        }
+
+        $env = (string) env('APP_ENV', 'production');
+        if (in_array($env, ['local', 'testing'], true)) {
+            return ['*'];
+        }
+
+        $frontend = trim((string) env('FRONTEND_URL', ''));
+
+        return $frontend !== '' ? [$frontend] : [];
+    })(),
 
     'allowed_origins_patterns' => [],
 

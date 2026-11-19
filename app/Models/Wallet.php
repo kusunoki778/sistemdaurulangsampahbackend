@@ -17,15 +17,19 @@ class Wallet extends Model
         'user_id',
         'saldo_koin',
         'koin_ditahan',
+        'saldo_rupiah',
         'total_koin_diperoleh',
         'total_sampah_kg',
+        'total_sampah_liter',
     ];
 
     protected $casts = [
         'saldo_koin' => 'decimal:2',
         'koin_ditahan' => 'decimal:2',
+        'saldo_rupiah' => 'decimal:2',
         'total_koin_diperoleh' => 'decimal:2',
         'total_sampah_kg' => 'decimal:2',
+        'total_sampah_liter' => 'decimal:2',
     ];
 
     protected $appends = [

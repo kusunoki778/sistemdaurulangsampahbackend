@@ -92,6 +92,10 @@ class TransaksiSetorController extends Controller
             ], 400);
         }
 
+        // Muat rincian + jenis sampahnya — member perlu melihat berapa kg/liter
+        // setiap jenis sebelum menekan konfirmasi.
+        $transaksi->load(['details.jenisSampah']);
+
         return response()->json([
             'status' => 'success',
             'message' => 'QR valid. Periksa rincian lalu konfirmasi.',

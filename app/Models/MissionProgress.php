@@ -17,10 +17,12 @@ class MissionProgress extends Model
         'mission_id',
         'progress',
         'status',
+        'terakhir_klaim_tanggal',
     ];
 
     protected $casts = [
         'progress' => 'integer',
+        'terakhir_klaim_tanggal' => 'date',
     ];
 
     public function user(): BelongsTo

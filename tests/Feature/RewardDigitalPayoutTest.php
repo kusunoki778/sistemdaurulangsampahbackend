@@ -11,6 +11,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
+/**
+ * Alur payout digital memakai jalur konversi-saldo (reward sistem nilai
+ * dinamis), bukan POST /permintaan-reward dengan reward saldo_digital.
+ */
 class RewardDigitalPayoutTest extends TestCase
 {
     use RefreshDatabase;
@@ -30,41 +34,34 @@ class RewardDigitalPayoutTest extends TestCase
         return $user;
     }
 
-    private function buatRewardDana(float $harga = 2000, int $stok = 5): Reward
-    {
-        return Reward::create([
-            'nama_reward' => 'Saldo DANA Rp20.000',
-            'tipe' => 'saldo_digital',
-            'koin_dibutuhkan' => $harga,
-            'nilai_rupiah' => 20000,
-            'stok' => $stok,
-            'deskripsi' => 'Payout simulasi ke e-wallet DANA',
-            'status_aktif' => true,
-        ]);
-    }
-
-    private function tukar(User $user, Reward $reward): PermintaanReward
+    private function tukar(User $user, int $koin = 2000): PermintaanReward
     {
         Sanctum::actingAs($user);
 
-        $response = $this->postJson('/api/permintaan-reward', [
-            'reward_id' => $reward->id,
-            'nomor_tujuan_digital' => '081234567890',
+        $response = $this->postJson('/api/permintaan-reward/konversi-saldo', [
+            'jumlah_koin' => $koin,
+            'metode' => 'dana',
+            'nomor_tujuan' => '081234567890',
+            'nama_pemilik' => 'Budi Uji',
         ])->assertCreated();
 
-        return PermintaanReward::findOrFail($response->json('data.permintaan.id'));
+        return PermintaanReward::findOrFail($response->json('data.permintaan_id'));
     }
 
     public function test_alur_payout_digital_pending_diproses_selesai(): void
     {
         $admin = $this->buatUser('admin');
         $user = $this->buatUser();
-        $reward = $this->buatRewardDana();
-        $permintaan = $this->tukar($user, $reward);
+        $permintaan = $this->tukar($user);
+
+        // Koin hanya di-HOLD saat pengajuan, belum dipotong.
+        $wallet = Wallet::where('user_id', $user->id)->first();
+        $this->assertSame('5000.00', $wallet->saldo_koin);
+        $this->assertSame('2000.00', $wallet->koin_ditahan);
 
         Sanctum::actingAs($admin);
 
-        // Selesai langsung dari pending ditolak — harus lewat diproses.
+        // Selesai langsung dari pending ditolak - harus lewat diproses.
         $this->postJson("/api/admin/permintaan-reward/{$permintaan->id}/selesai")
             ->assertStatus(422);
 
@@ -82,17 +79,19 @@ class RewardDigitalPayoutTest extends TestCase
         $this->assertNotNull($permintaan->selesai_at);
         $this->assertMatchesRegularExpression('/^STR-\d{8}-[0-9A-F]{6}$/', $permintaan->struk_nomor);
 
-        // Koin sudah dipotong saat klaim; tidak ada pemotongan kedua.
-        $this->assertSame('3000.00', Wallet::where('user_id', $user->id)->first()->saldo_koin);
+        // HOLD dilepas: 2000 koin dipotong, saldo rupiah masuk.
+        $wallet = Wallet::where('user_id', $user->id)->first();
+        $this->assertSame('3000.00', $wallet->saldo_koin);
+        $this->assertSame('0.00', $wallet->koin_ditahan);
+        $this->assertSame('200000.00', $wallet->saldo_rupiah);
         $this->assertSame(1, TransaksiKoin::where('sumber', 'reward_claim')->count());
     }
 
-    public function test_struk_payout_menampilkan_nomor_lengkap_dan_label_simulasi(): void
+    public function test_struk_payout_menampilkan_nomor_lengkap_tanpa_label_uji_coba(): void
     {
         $admin = $this->buatUser('admin');
         $user = $this->buatUser();
-        $reward = $this->buatRewardDana();
-        $permintaan = $this->tukar($user, $reward);
+        $permintaan = $this->tukar($user);
 
         Sanctum::actingAs($user);
 
@@ -110,9 +109,8 @@ class RewardDigitalPayoutTest extends TestCase
             ->json('data');
 
         $this->assertSame('payout_digital', $struk['jenis']);
-        $this->assertTrue($struk['simulasi']);
+        $this->assertArrayNotHasKey('simulasi', $struk);
         $this->assertSame('081234567890', $struk['nomor_tujuan']);
-        $this->assertSame(20000.0, (float) $struk['reward']['nilai_rupiah']);
         $this->assertSame(2000.0, (float) $struk['koin']);
         $this->assertNotEmpty($struk['nomor_struk']);
 
@@ -124,8 +122,7 @@ class RewardDigitalPayoutTest extends TestCase
     public function test_nomor_tujuan_disamarkan_di_riwayat_user(): void
     {
         $user = $this->buatUser();
-        $reward = $this->buatRewardDana();
-        $this->tukar($user, $reward);
+        $this->tukar($user);
 
         Sanctum::actingAs($user);
 
@@ -147,32 +144,31 @@ class RewardDigitalPayoutTest extends TestCase
         $this->assertSame('081234567890', $itemAdmin['nomor_tujuan_digital']);
     }
 
-    public function test_payout_gagal_mengembalikan_koin_dan_stok(): void
+    public function test_payout_gagal_mengembalikan_koin(): void
     {
         $admin = $this->buatUser('admin');
         $user = $this->buatUser();
-        $reward = $this->buatRewardDana(stok: 3);
-        $permintaan = $this->tukar($user, $reward);
+        $permintaan = $this->tukar($user);
 
         Sanctum::actingAs($admin);
 
-        $this->postJson("/api/admin/permintaan-reward/{$permintaan->id}/gagal", [
+        $this->postJson("/api/admin/permintaan-reward/{$permintaan->id}/batalkan", [
             'catatan_admin' => 'Nomor e-wallet tidak terdaftar.',
-        ])->assertOk()->assertJsonPath('data.status', 'gagal');
+        ])->assertOk()->assertJsonPath('data.status', 'dibatalkan');
 
-        $this->assertNotNull($permintaan->fresh()->gagal_at);
-
-        // Koin kembali penuh + ledger refund + stok kembali.
-        $this->assertSame('5000.00', Wallet::where('user_id', $user->id)->first()->saldo_koin);
-        $this->assertSame(1, TransaksiKoin::where('sumber', 'refund')->count());
-        $this->assertSame(3, $reward->fresh()->stok);
+        // Hold dilepas: koin tidak pernah keluar dari saldo_koin, jadi
+        // saldo kembali penuh tanpa ledger refund (tidak ada double count).
+        $wallet = Wallet::where('user_id', $user->id)->first();
+        $this->assertSame('5000.00', $wallet->saldo_koin);
+        $this->assertSame('0.00', $wallet->koin_ditahan);
+        $this->assertSame(0, TransaksiKoin::where('sumber', 'refund')->count());
 
         // Struk tidak tersedia untuk payout gagal.
         Sanctum::actingAs($user);
         $this->getJson("/api/permintaan-reward/{$permintaan->id}/struk")->assertStatus(422);
     }
 
-    public function test_struk_pickup_fisik_tidak_berlabel_simulasi(): void
+    public function test_struk_pickup_fisik_tanpa_label_uji_coba(): void
     {
         $admin = $this->buatUser('admin');
         $user = $this->buatUser(saldo: 1000);
@@ -203,7 +199,7 @@ class RewardDigitalPayoutTest extends TestCase
             ->json('data');
 
         $this->assertSame('pickup_fisik', $struk['jenis']);
-        $this->assertFalse($struk['simulasi']);
+        $this->assertArrayNotHasKey('simulasi', $struk);
         $this->assertNull($struk['nomor_tujuan']);
         $this->assertNotEmpty($struk['nomor_struk']);
     }

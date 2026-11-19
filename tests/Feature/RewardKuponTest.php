@@ -265,32 +265,35 @@ class RewardKuponTest extends TestCase
         $this->assertSame('500.00', Wallet::where('user_id', $user->id)->first()->koin_ditahan);
     }
 
-    public function test_reward_digital_tetap_memotong_koin_langsung(): void
+    public function test_payout_digital_memakai_hold_koin_via_konversi_saldo(): void
     {
         $admin = $this->buatUser('admin');
         $user = $this->buatUser(saldo: 5000);
-        $reward = $this->buatReward('saldo_digital', 2000, 2);
 
         Sanctum::actingAs($user);
 
-        $this->postJson('/api/permintaan-reward', [
-            'reward_id' => $reward->id,
-        ])->assertStatus(422)->assertJsonValidationErrors('nomor_tujuan_digital');
+        // Nomor tujuan wajib.
+        $this->postJson('/api/permintaan-reward/konversi-saldo', [
+            'jumlah_koin' => 2000,
+            'metode' => 'dana',
+        ])->assertStatus(422)->assertJsonValidationErrors('nomor_tujuan');
 
-        $response = $this->postJson('/api/permintaan-reward', [
-            'reward_id' => $reward->id,
-            'nomor_tujuan_digital' => '081234567890',
+        $response = $this->postJson('/api/permintaan-reward/konversi-saldo', [
+            'jumlah_koin' => 2000,
+            'metode' => 'dana',
+            'nomor_tujuan' => '081234567890',
+            'nama_pemilik' => 'Budi Uji',
         ])->assertCreated();
 
-        $permintaan = PermintaanReward::findOrFail($response->json('data.permintaan.id'));
+        $permintaan = PermintaanReward::findOrFail($response->json('data.permintaan_id'));
 
-        $this->assertNull($permintaan->expires_at);
-        $this->assertSame('0.00', $permintaan->koin_ditahan);
+        $this->assertNotNull($permintaan->expires_at);
+        $this->assertSame('2000.00', $permintaan->koin_ditahan);
 
+        // Koin hanya di-HOLD, belum dipotong sampai payout selesai.
         $wallet = Wallet::where('user_id', $user->id)->first();
-        $this->assertSame('3000.00', $wallet->saldo_koin);
-        $this->assertSame('0.00', $wallet->koin_ditahan);
-        $this->assertSame(1, TransaksiKoin::where('sumber', 'reward_claim')->count());
+        $this->assertSame('5000.00', $wallet->saldo_koin);
+        $this->assertSame('2000.00', $wallet->koin_ditahan);
 
         Sanctum::actingAs($admin);
 
@@ -306,7 +309,10 @@ class RewardKuponTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'selesai');
 
-        $this->assertSame('3000.00', Wallet::where('user_id', $user->id)->first()->saldo_koin);
+        $wallet = Wallet::where('user_id', $user->id)->first();
+        $this->assertSame('3000.00', $wallet->saldo_koin);
+        $this->assertSame('0.00', $wallet->koin_ditahan);
+        $this->assertSame('200000.00', $wallet->saldo_rupiah);
         $this->assertSame(1, TransaksiKoin::count());
     }
 

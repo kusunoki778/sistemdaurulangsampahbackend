@@ -34,6 +34,7 @@ class WalletController extends Controller
                 'koin_ditahan' => 0,
                 'total_koin_diperoleh' => 0,
                 'total_sampah_kg' => 0,
+                'total_sampah_liter' => 0,
             ]);
         }
 
@@ -42,9 +43,11 @@ class WalletController extends Controller
             'data' => [
                 'saldo_koin' => (float) $wallet->saldo_koin,
                 'koin_ditahan' => (float) $wallet->koin_ditahan,
+                'saldo_rupiah' => (float) $wallet->saldo_rupiah,
                 'saldo_tersedia' => (float) $wallet->saldo_tersedia,
                 'total_koin_diperoleh' => (float) $wallet->total_koin_diperoleh,
                 'total_sampah_kg' => (float) $wallet->total_sampah_kg,
+                'total_sampah_liter' => (float) $wallet->total_sampah_liter,
                 'status_member' => $user->status_member ?? 'Bronze',
             ],
         ]);

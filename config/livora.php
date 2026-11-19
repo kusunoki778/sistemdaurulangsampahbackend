@@ -26,4 +26,24 @@ return [
 
     'reward_expiry_days' => (int) env('REWARD_EXPIRY_DAYS', 3),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Pencairan saldo mode sandbox
+    |--------------------------------------------------------------------------
+    |
+    | Endpoint POST /api/permintaan-reward/{id}/bayar-sandbox menyelesaikan
+    | pencairan saldo TANPA pembayaran nyata (simulasi demo). Di produksi
+    | endpoint ini dimatikan secara default supaya saldo rupiah tidak bisa
+    | dicetak sendiri oleh pengguna.
+    |
+    | Setel SANDBOX_PAYOUT=true di .env/Render HANYA bila sedang demo dan
+    | memang ingin memperlihatkan alur pencairan simulasi.
+    |
+    */
+
+    'sandbox_payout' => filter_var(
+        env('SANDBOX_PAYOUT', env('APP_ENV', 'production') !== 'production'),
+        FILTER_VALIDATE_BOOLEAN,
+    ),
+
 ];
