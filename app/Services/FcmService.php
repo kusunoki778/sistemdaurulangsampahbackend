@@ -193,7 +193,16 @@ class FcmService
         if ($path === '') {
             $path = storage_path('app/firebase/fcm-service-account.json');
         } else {
-            $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, base_path($path));
+            $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
+
+            // Path relatif dihitung dari root backend. Path absolut dipakai
+            // apa adanya, termasuk Secret File Render di /etc/secrets.
+            $absolut = str_starts_with($path, DIRECTORY_SEPARATOR)
+                || preg_match('/^[A-Za-z]:[\\\\\\/]/', $path) === 1;
+
+            if (! $absolut) {
+                $path = base_path($path);
+            }
         }
 
         if (! is_file($path)) {

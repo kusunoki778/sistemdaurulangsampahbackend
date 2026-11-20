@@ -72,7 +72,9 @@ services:
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: FCM_SERVICE_ACCOUNT_JSON
-        sync: false
+        # Upload JSON service account sebagai Secret File bernama
+        # fcm-service-account.json di dashboard Render.
+        value: /etc/secrets/fcm-service-account.json
       - key: MAIL_MAILER
         value: smtp
       - key: MAIL_HOST
