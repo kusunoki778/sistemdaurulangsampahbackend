@@ -8,25 +8,21 @@ URL: `https://livora-backend-txpl.onrender.com`
 
 ## Perintah Render
 
-Build:
+Runtime: Docker
 
-```bash
-composer install --no-dev --prefer-dist --optimize-autoloader
-```
-
-Start:
-
-```bash
-php artisan storage:link || true && php artisan migrate --force && php artisan serve --host 0.0.0.0 --port $PORT
-```
+Dockerfile: `./Dockerfile`
 
 Health check: `/api/health`
 
-Konfigurasi ini juga ada di `render.yaml`. Jangan memakai `php artisan config:cache` karena `config/cors.php` memakai closure yang tidak bisa diserialisasi.
+Image Docker menjalankan `composer install`, lalu start lewat `CMD` di `Dockerfile`. Tidak ada `buildCommand` atau `startCommand` terpisah di `render.yaml`.
+
+Dockerfile memasang GD dengan freetype, jpeg, png, dan webp. Ini yang membuat captcha admin tampil sebagai gambar, bukan soal aritmetika. Build juga memeriksa `imagettftext` dan gagal kalau GD tidak aktif.
+
+Jangan memakai `php artisan config:cache` karena `config/cors.php` memakai closure yang tidak bisa diserialisasi.
 
 ## Urutan setup
 
-1. Buat Web Service dari repo backend, runtime PHP 8.3, atau hubungkan repo lewat Blueprint `render.yaml`.
+1. Buat Web Service dari repo backend dengan runtime Docker, atau hubungkan repo lewat Blueprint `render.yaml`. Jangan pilih runtime PHP native karena image tersebut tidak menyertakan GD.
 2. Isi env inti dan database Aiven di dashboard Render.
 3. Upload service account FCM sebagai Secret File.
 4. Isi env fitur: Cloudinary, Gemini, Google, email, dan Xendit.
@@ -35,6 +31,10 @@ Konfigurasi ini juga ada di `render.yaml`. Jangan memakai `php artisan config:ca
 7. Buka `GET /` dan pastikan membalas JSON API Livora.
 
 Kalau memakai Blueprint, env yang bertanda `sync: false` harus diisi manual. Nilai lain sudah diisi otomatis oleh `render.yaml`.
+
+### Service lama dengan runtime PHP native
+
+Kalau service `livora-backend` sebelumnya dibuat dengan runtime PHP native, ubah runtime ke Docker lewat dashboard Render. Jika Render tidak mengizinkan perubahan runtime di tempat, buat service Docker baru dengan repo dan env yang sama, lalu hapus service lama. Sesuaikan `APP_URL` dan `CORS_ALLOWED_ORIGINS` bila URL berubah.
 
 ## Env inti
 
@@ -170,9 +170,15 @@ https://livora-backend-txpl.onrender.com/api/xendit/webhook
 
 Header `x-callback-token` dari Xendit harus cocok dengan `XENDIT_CALLBACK_TOKEN`. Kalau URL Render berbeda, sesuaikan callback URL.
 
+## Captcha admin
+
+Login admin memakai centang "Saya bukan robot" dan captcha gambar lima karakter. Endpoint `GET /api/auth/captcha` mengembalikan `token` dan `gambar` berupa data URI PNG.
+
+Captcha gambar membutuhkan ekstensi GD dengan freetype. Dockerfile sudah memasangnya, dan build akan gagal kalau `imagettftext` tidak tersedia. Kalau GD tidak ada, service memakai soal aritmetika sebagai cadangan, tetapi itu bukan konfigurasi yang diharapkan di produksi.
+
 ## Turnstile opsional
 
-Selama dua nilai ini kosong, login admin memakai captcha aritmetika lokal.
+Selama dua nilai ini kosong, login admin memakai captcha gambar lokal.
 
 | Variabel | Nilai |
 | --- | --- |

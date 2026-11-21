@@ -86,6 +86,21 @@ class TurnstileLoginTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_captcha_lokal_memakai_gambar_saat_gd_tersedia(): void
+    {
+        if (! function_exists('imagecreatetruecolor')) {
+            $this->markTestSkipped('GD tidak tersedia di lingkungan test.');
+        }
+
+        $captcha = $this->getJson('/api/auth/captcha')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertArrayHasKey('gambar', $captcha);
+        $this->assertStringStartsWith('data:image/png;base64,', $captcha['gambar']);
+        $this->assertArrayNotHasKey('pertanyaan', $captcha);
+    }
+
     public function test_turnstile_aktif_token_tidak_sah_ditolak(): void
     {
         $this->admin();

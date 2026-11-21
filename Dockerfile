@@ -1,8 +1,17 @@
 # Livora API Backend - Laravel 13 di PHP 8.3 (untuk Render Web Service, runtime Docker)
 FROM php:8.3-cli-alpine
 
-# Ekstensi PHP yang dibutuhkan Laravel + MySQL + unzip untuk composer
-RUN docker-php-ext-install pdo_mysql && apk add --no-cache unzip
+# Library runtime + ekstensi PHP yang dibutuhkan Laravel, MySQL, dan captcha.
+# GD wajib punya freetype untuk imagettftext, plus jpeg/png/webp untuk gambar.
+RUN apk add --no-cache freetype libjpeg-turbo libpng libwebp unzip \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS freetype-dev libjpeg-turbo-dev libpng-dev libwebp-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install -j"$(nproc)" gd pdo_mysql \
+    && apk del .build-deps
+
+# Gagalkan build kalau GD atau freetype tidak ikut terpasang, supaya captcha
+# tidak diam-diam jatuh ke soal aritmetika di produksi.
+RUN php -r "if (!extension_loaded('gd') || !function_exists('imagettftext')) { fwrite(STDERR, 'GD atau freetype tidak tersedia'.PHP_EOL); exit(1); }"
 
 # Composer dari image resmi
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
